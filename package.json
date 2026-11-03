@@ -1,0 +1,16 @@
+{
+  "name": "arcane-arena",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Arcane Arena: maze raids for duelling wizards. Serves the game and runs private multiplayer lobbies.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

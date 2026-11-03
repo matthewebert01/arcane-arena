@@ -1,0 +1,6 @@
+node_modules/
+node.exe
+npm*
+npx*
+nodevars.bat
+install_tools.bat
