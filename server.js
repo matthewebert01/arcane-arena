@@ -45,7 +45,7 @@ function newCode() {
 const send = (client, message) => { if (client.socket.readyState === 1) client.socket.send(JSON.stringify(message)); };
 const lobbyView = room => ({
   t: 'lobby', code: room.code, settings: room.settings, started: room.started,
-  players: [...room.players.values()].sort((a, b) => a.seat - b.seat).map(({ seat, profile }) => ({ seat, ...profile }))
+  players: [...room.players.values()].sort((a, b) => a.seat - b.seat).map(({ seat, profile, ready }) => ({ seat, ...profile, ready: seat === 0 || !!ready }))
 });
 const broadcastLobby = room => room.players.forEach(client => send(client, lobbyView(room)));
 // Keep only the profile fields the game needs, with sensible limits.
@@ -96,7 +96,7 @@ function handle(client, message) {
       const seat = [0, 1, 2].find(index => !target.players.has(index));
       if (seat === undefined || target.players.size >= MAX_SEATS) { send(client, { t: 'error', message: 'That lobby is full.' }); return; }
       if (room) leaveRoom(client);
-      Object.assign(client, { room: code, seat, profile: cleanProfile(message.profile) });
+      Object.assign(client, { room: code, seat, profile: cleanProfile(message.profile), ready: false });
       target.players.set(seat, client);
       send(client, { t: 'joined', code, seat, host: false });
       broadcastLobby(target);
@@ -110,13 +110,24 @@ function handle(client, message) {
     }
     case 'settings': {
       if (!room || client !== room.host || room.started) return;
-      room.settings = { mode: message.mode === '1v1v1' ? '1v1v1' : '1v1', fillAI: !!message.fillAI };
+      const settings = { mode: message.mode === '1v1v1' ? '1v1v1' : '1v1', fillAI: !!message.fillAI };
+      // A changed match setup means everyone readies up again.
+      if (settings.mode !== room.settings.mode || settings.fillAI !== room.settings.fillAI) room.players.forEach(other => { other.ready = false; });
+      room.settings = settings;
+      broadcastLobby(room);
+      break;
+    }
+    case 'ready': {
+      // Guests mark themselves ready; the host can only start once every guest is ready.
+      if (!room || room.started || client === room.host) return;
+      client.ready = !!message.ready;
       broadcastLobby(room);
       break;
     }
     case 'start': {
       // The host sends the full match setup (seats and map seed); everyone starts from the same setup.
       if (!room || client !== room.host || room.started) return;
+      if ([...room.players.values()].some(other => other !== room.host && !other.ready)) { send(client, { t: 'error', message: 'Everyone needs to be ready first.' }); return; }
       room.started = true;
       room.players.forEach(other => send(other, { t: 'start', setup: message.setup }));
       break;

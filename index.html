@@ -476,6 +476,8 @@
     }
     @media (max-width: 760px) { .rank-info-grid { grid-template-columns: 1fr; } .league-row { grid-template-columns: 40px 1fr; } .league-row .tiers { grid-column: 1 / -1; } }
     .play-button { width: 100%; min-height: 56px; margin-top: 20px; border: 1px solid #c8a65a; background: linear-gradient(180deg, #5b4c26, #3b3220); color: #ffe6a6; cursor: pointer; font: 22px var(--serif); letter-spacing: .2em; text-transform: uppercase; box-shadow: 0 0 24px #f0c87622; transition: filter .15s, transform .15s; }
+    .play-button.ready-check { border-color: #6be08a; background: linear-gradient(180deg, #3f8a52, #24563a); color: #e8ffe9; animation: ready-pulse 1s ease-in-out infinite; }
+    @keyframes ready-pulse { 50% { box-shadow: 0 0 34px #6be08a88; } }
     .play-button:hover { filter: brightness(1.15); transform: translateY(-1px); }
     .play-button:disabled { opacity: .6; cursor: default; transform: none; }
     .queue-status { min-height: 18px; margin-top: 10px; color: var(--muted); font-size: 11px; text-align: center; }
@@ -746,6 +748,9 @@
     .lobby-player small { display: block; color: #978bb2; font-size: 11px; }
     .lobby-player em { color: var(--magenta); font: italic 11px var(--serif); }
     .lobby-player .badge { padding: 2px 7px; border: 1px solid #f0c87666; color: var(--gold); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .lobby-player .badge.ready { border-color: #6be08a88; color: #7cf09a; background: #6be08a14; }
+    .lobby-player .badge.not-ready { border-color: #8a80a666; color: #9c91b6; }
+    #lobby-go.is-ready { background: linear-gradient(180deg, #4fbf6c, #2e8a48); color: #fff; }
     .lobby-player.you { border-color: #5ef0ff88; }
     .lobby-player.empty { border-style: dashed; background: none; }
     .lobby-player.empty strong { color: #8a80a6; font-weight: 500; }
@@ -852,13 +857,13 @@
         <div class="sensitivity"><input type="range" id="sensitivity-input" min="0.3" max="2" step="0.1"><output id="sensitivity-value"></output></div>
       </div>
       <div class="camera-modes">
-        <button class="camera-mode" data-camera-mode="action" type="button"><strong>Action camera (recommended)</strong><small>Click the arena to capture the mouse. Mouse turns and aims, left click fires (hold to keep firing), hold right click to look around. Easiest for strafing and shooting. Esc releases the mouse.</small></button>
+        <button class="camera-mode" data-camera-mode="action" type="button"><strong>Action camera (recommended)</strong><small>Click the arena to capture the mouse. Mouse turns and aims, left click fires (hold to keep firing), right click cancels a wall preview. Easiest for strafing and shooting. Esc releases the mouse.</small></button>
         <button class="camera-mode" data-camera-mode="classic" type="button"><strong>Classic (drag)</strong><small>World of Warcraft style: right-drag to steer, left-drag to orbit the camera, click to fire.</small></button>
       </div>
       <p class="controls-intro">Click a key, then press the new key you want. If another action already uses it, the two swap. <b>Esc</b> cancels.</p>
       <div class="controls-grid" id="controls-grid"></div>
       <div class="controls-footer">
-        <div class="controls-mouse"><b>Mouse:</b> left click fires at the reticle · scroll zooms (or rotates a wall preview) · right click cancels a wall preview. <b>Action:</b> mouse aims, hold right to look around. <b>Classic:</b> right-drag steer, left-drag orbit.</div>
+        <div class="controls-mouse"><b>Mouse:</b> left click fires at the reticle · scroll zooms (or rotates a wall preview) · right click cancels a wall preview. <b>Action:</b> mouse turns and aims. <b>Classic:</b> right-drag steer, left-drag orbit.</div>
         <button class="info-button" id="controls-reset" type="button">Reset to defaults</button>
       </div>
     </div>
@@ -1859,6 +1864,23 @@
             if (row + 1 < lastCell && layoutRandom() < .08) openPair([row, col], [row + 1, col]);
           }
         }
+        // No dead ends: every cell with a single exit gets a second one (mirrored too), so every corridor
+        // loops back into the maze and nobody can be cornered. Joining two dead ends together is preferred.
+        for (let pass = 0; pass < 4; pass++) {
+          let found = false;
+          for (let row = 1; row < lastCell; row++) {
+            for (let col = 1; col < lastCell; col++) {
+              if (exitCount([row, col]) > 1) continue;
+              found = true;
+              const closed = DIRECTIONS.filter(([dRow, dCol, wall]) => cells[row][col][wall] && isInterior(row + dRow, col + dCol)).map(([dRow, dCol]) => [row + dRow, col + dCol]);
+              if (!closed.length) continue;
+              const deadNeighbours = closed.filter(cell => exitCount(cell) <= 1);
+              const pool = deadNeighbours.length ? deadNeighbours : closed;
+              openPair([row, col], pool[Math.floor(layoutRandom() * pool.length)]);
+            }
+          }
+          if (!found) break;
+        }
       }
       // Walking distance (in cells) from one cell to every other cell.
       function mazeDistances([startRow, startCol]) {
@@ -1883,7 +1905,7 @@
           carveSymmetric(rotate, (row, col) => row < lastCell / 2 || (row === lastCell / 2 && col <= lastCell / 2));
           const bases = [[2, 2], [6, 6]];
           if (layoutRandom() < .5) bases.reverse();
-          return { home: bases[0], rivals: [bases[1]], spread: [mazeDistances(bases[0])[6][6]] };
+          return { home: bases[0], rivals: [bases[1]], spread: [mazeDistances(bases[0])[bases[1][0]][bases[1][1]]] };
         }
         const flip = ([row, col]) => [col, row];
         let best = null;
@@ -2251,6 +2273,60 @@
             : { title: 'CARRIER', sub: `${shortName(wizard)} · ${metres(wizard)}`, color: wizard.mapColor });
         }
       }
+      // Health and mana bars floating over every enemy, so you can see how a fight is going.
+      // Walls hide them (no seeing enemies through the maze).
+      const enemyBars = new Map();
+      function updateEnemyBars() {
+        for (const wizard of rivals) {
+          if (!enemyBars.has(wizard)) {
+            const barCanvas = document.createElement('canvas');
+            barCanvas.width = 256;
+            barCanvas.height = 72;
+            const texture = new THREE.CanvasTexture(barCanvas);
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, sizeAttenuation: false }));
+            sprite.scale.set(.36, .101, 1);
+            sprite.renderOrder = 900;
+            scene.add(sprite);
+            enemyBars.set(wizard, { sprite, canvas: barCanvas, context: barCanvas.getContext('2d'), texture, key: '' });
+          }
+          const bar = enemyBars.get(wizard);
+          const shown = wizard.body && wizard.body.visible && !isDown(wizard) && gameState === 'playing';
+          bar.sprite.visible = !!shown;
+          if (!shown) continue;
+          bar.sprite.position.set(wizard.x, (wizard.y || 0) + (isHuman(wizard) ? 2.6 : 2.95), wizard.z);
+          const hp = Math.max(0, Math.min(100, wizard.hp)), mana = Math.max(0, Math.min(100, wizard.mana ?? 100));
+          const absorb = Math.max(0, wizard.absorb || 0), warded = (wizard.wardUntil || 0) > elapsed;
+          const key = `${Math.ceil(hp)}|${Math.floor(mana)}|${Math.ceil(absorb)}|${warded}`;
+          if (key === bar.key) continue;
+          bar.key = key;
+          const context = bar.context;
+          context.clearRect(0, 0, 256, 72);
+          context.font = '700 20px system-ui, sans-serif';
+          context.textAlign = 'center';
+          context.lineWidth = 4;
+          context.strokeStyle = '#000c';
+          context.fillStyle = wizard.mapColor || '#ffffff';
+          context.strokeText(shortName(wizard), 128, 20);
+          context.fillText(shortName(wizard), 128, 20);
+          // Health (with any shield shown in white on top), then mana.
+          context.fillStyle = '#000b';
+          context.fillRect(14, 28, 228, 22);
+          context.fillRect(14, 54, 228, 12);
+          context.fillStyle = hp > 50 ? '#5ad16a' : hp > 25 ? '#f0c040' : '#ff5a4a';
+          context.fillRect(17, 31, 222 * hp / 100, 16);
+          if (absorb > 0) { context.fillStyle = '#ffffffcc'; context.fillRect(17, 31, 222 * Math.min(100, absorb) / 100, 5); }
+          if (warded) { context.strokeStyle = '#9fe8ff'; context.lineWidth = 2; context.strokeRect(15, 29, 226, 20); }
+          context.fillStyle = '#4b8fff';
+          context.fillRect(17, 57, 222 * mana / 100, 6);
+          context.font = '700 14px system-ui, sans-serif';
+          context.fillStyle = '#fff';
+          context.strokeStyle = '#000';
+          context.lineWidth = 3;
+          context.strokeText(Math.ceil(hp), 128, 45);
+          context.fillText(Math.ceil(hp), 128, 45);
+          bar.texture.needsUpdate = true;
+        }
+      }
       // A short line telling you what to do right now, just above the spell bar.
       const objectivePrompt = document.querySelector('#objective-prompt');
       function updateObjectivePrompt() {
@@ -2336,7 +2412,7 @@
       // HUD keys and hints follow the player's bindings. 
       document.querySelectorAll('[data-key-for]').forEach(label => { label.textContent = keyName(label.dataset.keyFor); });
       document.querySelector('#interact-action').title = `Steal or capture treasure [${keyName('interact')}]`;
-      document.querySelector('#move-hint').innerHTML = `Move <kbd>${keyName('forward')}</kbd><kbd>${keyName('back')}</kbd> · Strafe <kbd>${keyName('left')}</kbd><kbd>${keyName('right')}</kbd> · Turn <kbd>${keyName('turnLeft')}</kbd><kbd>${keyName('turnRight')}</kbd> · Jump <kbd>${keyName('jump')}</kbd> · Blink <kbd>${keyName('blink')}</kbd> ${config.cameraMode === 'classic' ? '· Steer RMB · Orbit LMB' : '· Mouse aims · Hold LMB to fire · Hold RMB to look'}`;
+      document.querySelector('#move-hint').innerHTML = `Move <kbd>${keyName('forward')}</kbd><kbd>${keyName('back')}</kbd> · Strafe <kbd>${keyName('left')}</kbd><kbd>${keyName('right')}</kbd> · Turn <kbd>${keyName('turnLeft')}</kbd><kbd>${keyName('turnRight')}</kbd> · Jump <kbd>${keyName('jump')}</kbd> · Blink <kbd>${keyName('blink')}</kbd> ${config.cameraMode === 'classic' ? '· Steer RMB · Orbit LMB' : '· Mouse aims · Hold LMB to fire'}`;
       document.querySelector('.scoreboard-hint').innerHTML = `Press <kbd>${keyName('scoreboard')}</kbd> to open or close the scoreboard`;
       // Hotbar shows the chosen wizard's own spells.
       document.querySelectorAll('.action-slot[data-action-spell]').forEach(slot => {
@@ -3078,6 +3154,14 @@
         }
         return segments.filter(segment => !segment.blocked).length >= 2 ? segments : null;
       }
+      // How far a wizard can blink before hitting a wall. Blinks never pass through walls (maze or spell walls).
+      function blinkReach(wizard, direction, maxTravel) {
+        const origin = new THREE.Vector3(wizard.x, .5, wizard.z);
+        const clear = rayWallDistance(origin, new THREE.Vector3(direction.x, 0, direction.z).normalize(), maxTravel + .6, .45);
+        let travel = Math.min(maxTravel, clear - .6);
+        while (travel > 0 && !canMoveTo(wizard.x + direction.x * travel, wizard.z + direction.z * travel, .5)) travel -= .25;
+        return Math.max(0, travel);
+      }
       // Moves a wizard forward with its school's blink effects (and Flame Dash's landing burst).
       function blinkWizard(wizard, direction, travel) {
         const wizardKit = wizard === player ? kit : wizard.kit;
@@ -3735,9 +3819,8 @@
         if (spell === 'blink') {
           faceAim();
           const ahead = currentForward();
-          blinkTravel = kit.blink.distance;
-          while (blinkTravel > 2 && !canMoveTo(player.x + ahead.x * blinkTravel, player.z + ahead.z * blinkTravel, .6)) blinkTravel -= .5;
-          if (blinkTravel <= 2) { showToast('The maze blocks your path'); return; }
+          blinkTravel = blinkReach(player, ahead, kit.blink.distance);
+          if (blinkTravel <= 2) { showToast('A wall blocks your blink'); return; }
         }
         // Signature spells need a target before spending mana.
         let signatureAim = null;
@@ -3939,13 +4022,7 @@
         const direction = new THREE.Vector3(toward.x - rival.x, 0, toward.z - rival.z);
         if (direction.lengthSq() < 1) return false;
         direction.normalize();
-        let travel = rival.kit.blink.distance;
-        const eye = new THREE.Vector3(rival.x, 1.2, rival.z);
-        while (travel >= 5) {
-          const landing = new THREE.Vector3(rival.x + direction.x * travel, 1.2, rival.z + direction.z * travel);
-          if (canMoveTo(landing.x, landing.z, .6) && hasLineOfSight(eye, landing)) break;
-          travel -= 1;
-        }
+        const travel = blinkReach(rival, direction, rival.kit.blink.distance);
         if (travel < 5 || !rivalCast(rival, 'blink')) return false;
         blinkWizard(rival, direction, travel);
         rival.targetPath = [];
@@ -4557,7 +4634,18 @@
           moveTo: (x, z) => { player.x = x; player.z = z; },
           vaultOf: seat => { const wizard = bySeat(seat); return { x: wizard.vault.x, z: wizard.vault.z }; },
           shootAt: seat => { const target = bySeat(seat), origin = eyeOf(player); createProjectile(origin, wizardCenter(target).sub(origin), player, kit.bolt, kit.theme, kit.bolt.damage); },
-          cast: spell => castSpell(spell), interact: () => interact()
+          cast: spell => castSpell(spell), interact: () => interact(),
+          maze: () => {
+            let deadEnds = 0, unreachable = 0;
+            const reach = mazeDistances([layout.home[0], layout.home[1]]);
+            for (let row = 1; row < lastCell; row++) for (let col = 1; col < lastCell; col++) { if (exitCount([row, col]) < 2) deadEnds++; if (reach[row][col] === Infinity) unreachable++; }
+            return { deadEnds, unreachable, spread: layout.spread };
+          },
+          face: yaw => { player.yaw = yaw; },
+          blinkReach: (x, z, angle) => { const saved = [player.x, player.z]; player.x = x; player.z = z; const travel = blinkReach(player, new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle)), kit.blink.distance); player.x = saved[0]; player.z = saved[1]; return travel; },
+          cellWorld: index => cellWorld(index), gridSize,
+          pathClear: (x1, z1, x2, z2) => { for (let step = 0; step <= 60; step++) { const t = step / 60; if (!canMoveTo(x1 + (x2 - x1) * t, z1 + (z2 - z1) * t, .05)) return false; } return true; },
+          me: () => ({ x: player.x, z: player.z, mana: player.mana })
         };
       }
       function frame(time) {
@@ -4625,6 +4713,7 @@
         updateActionControls(dt);
         updateCamera(dt);
         updateWallPlacement();
+        updateEnemyBars();
         // Reticle turns red over the rival, and hides while you wait to respawn.
         reticle.classList.toggle('on-target', !wallPlacement && getAim().kind === 'rival');
         reticle.classList.toggle('placing', !!wallPlacement);
@@ -4694,7 +4783,7 @@
       // ---------- Action camera (default mouse mode) ----------
       // Shooter-style controls so you can strafe and fire at the same time: click the arena to capture the mouse,
       // then moving the mouse turns your gnome and aims (no button needed), left click fires the moment you press it
-      // (hold to keep firing), holding right click looks around freely, and A/D strafe around your aim.
+      // (hold to keep firing), and A/D strafe around your aim.
       // Esc releases the mouse and opens the match menu. If the browser refuses to capture the mouse, the classic
       // drag controls below are used instead.
       const actionMode = config.cameraMode !== 'classic';
@@ -4714,8 +4803,8 @@
         actionButtonsHeld = buttons;
         if ((buttons & 1) && !(previous & 1)) { actionFireHeld = true; castSelected(); }
         if (!(buttons & 1)) actionFireHeld = false;
-        if ((buttons & 2) && !(previous & 2)) { if (wallPlacement) endWallPlacement(); else actionLookHeld = true; }
-        if (!(buttons & 2)) actionLookHeld = false;
+        // Right click only cancels wall placement. It no longer swings the camera (that pulled movement off course).
+        if ((buttons & 2) && !(previous & 2) && wallPlacement) endWallPlacement();
       }
       canvas.addEventListener('pointerdown', event => {
         if (!usingActionMouse(event) || gameMenuOpen) return;
@@ -4728,9 +4817,8 @@
         if (!usingActionMouse(event) || !actionLocked) return;
         if (event.buttons !== actionButtonsHeld) actionButtons(event.buttons);
         const dx = clamp(event.movementX, -40, 40), dy = clamp(event.movementY, -40, 40);
-        // Holding right click looks around without turning; otherwise the mouse turns your gnome and aims.
-        if (actionLookHeld) cam.yawOffset += dx * lookSensitivity;
-        else player.yaw += dx * lookSensitivity;
+        // The mouse turns your gnome and aims.
+        player.yaw += dx * lookSensitivity;
         cam.pitch = clamp(cam.pitch + dy * pitchSensitivity, -.08, .9);
       });
       canvas.addEventListener('pointerup', event => { if (usingActionMouse(event) && actionLocked) actionButtons(event.buttons); });
@@ -5222,6 +5310,7 @@
         if (kind === 'buy') [784, 1047, 1319].forEach((frequency, index) => note(frequency, index * .08, .35, .07, 'triangle'));
         if (kind === 'equip') note(660, 0, .14, .05, 'triangle');
         if (kind === 'deny') note(180, 0, .18, .06, 'square');
+        if (kind === 'found') [660, 880, 660, 880].forEach((frequency, index) => note(frequency, index * .13, .22, .07, 'triangle'));
       }
 
       // ---------- Gnome Chests ----------
@@ -5524,7 +5613,7 @@
           const model = WIZARD_MODELS.find(entry => entry.id === player.model) || WIZARD_MODELS[0];
           return `<div class="lobby-player${player.seat === online.seat ? ' you' : ''}"><span class="option-sigil">${model.sigil}</span>
             <span><strong>${escapeMenu(player.name)}</strong><small>${model.name} · Level ${player.level}${player.title ? ` · <em>${escapeMenu(player.title)}</em>` : ''}</small></span>
-            ${player.seat === 0 ? '<span class="badge">Host</span>' : player.seat === online.seat ? '<span class="badge">You</span>' : ''}</div>`;
+            ${player.seat === 0 ? '<span class="badge">Host</span>' : player.ready ? '<span class="badge ready">✓ Ready</span>' : '<span class="badge not-ready">Not ready</span>'}</div>`;
         });
         for (let index = players.length; index < seats; index++) {
           rows.push(mode === '1v1v1' && fillAI && players.length >= 2 && index === seats - 1
@@ -5532,13 +5621,24 @@
             : '<div class="lobby-player empty"><span class="option-sigil">+</span><span><strong>Waiting for a friend…</strong><small>Share the invite link</small></span></div>');
         }
         $('#lobby-players').innerHTML = rows.join('');
-        const ready = players.length === seats || (mode === '1v1v1' && fillAI && players.length === 2);
+        const full = players.length === seats || (mode === '1v1v1' && fillAI && players.length === 2);
+        // Every friend has to press Ready before the host can start.
+        const waitingOn = players.filter(player => player.seat !== 0 && !player.ready);
+        const allReady = full && !waitingOn.length;
         const go = $('#lobby-go');
-        go.hidden = !online.host;
-        go.disabled = !ready;
-        go.textContent = ready ? 'Start match' : 'Waiting for players…';
-        if (!online.host) setLobbyStatus('Waiting for the host to start the match.');
-        else setLobbyStatus(ready ? 'Everyone is here!' : 'Send the invite link to a friend.');
+        go.classList.toggle('is-ready', false);
+        if (online.host) {
+          go.disabled = !allReady;
+          go.textContent = allReady ? 'Start match' : !full ? 'Waiting for players…' : 'Waiting for everyone to be ready…';
+          setLobbyStatus(allReady ? 'Everyone is ready!' : !full ? 'Send the invite link to a friend.' : `Waiting on ${waitingOn.map(player => escapeMenu(player.name)).join(' and ')} to ready up.`);
+        } else {
+          const me = players.find(player => player.seat === online.seat);
+          const iAmReady = !!(me && me.ready);
+          go.disabled = false;
+          go.classList.toggle('is-ready', iAmReady);
+          go.textContent = iAmReady ? '✓ Ready' : 'Ready';
+          setLobbyStatus(iAmReady ? (allReady ? 'Everyone is ready · waiting for the host to start. Click again to cancel.' : 'You are ready. Click again to cancel.') : 'Press Ready when you are set.');
+        }
       }
       const escapeMenu = text => String(text).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
       async function openLobby(joinCode = null) {
@@ -5582,7 +5682,14 @@
       // Host: lock in the seats (players, plus an AI if asked) and a map seed, then start everyone together.
       $('#lobby-go').addEventListener('click', () => {
         const lobby = online.lobby;
-        if (!online.host || !lobby) return;
+        if (!lobby) return;
+        if (!online.host) {
+          // Guests: the button toggles Ready.
+          const me = lobby.players.find(player => player.seat === online.seat);
+          onlineSend({ t: 'ready', ready: !(me && me.ready) });
+          return;
+        }
+        if (lobby.players.some(player => player.seat !== 0 && !player.ready)) return;
         const seats = lobby.players.map((player, index) => ({ seat: index, lobbySeat: player.seat, kind: 'human', ...player }));
         const wanted = lobby.settings.mode === '1v1v1' ? 3 : 2;
         if (seats.length < wanted) {
@@ -5664,9 +5771,23 @@
           }
         });
       }
+      // Queue ready check: once a match is found you have a few seconds to press Ready, or the match is declined.
+      const READY_SECONDS = 15;
+      let readyCheck = null;
+      function endReadyCheck(message = '') {
+        if (!readyCheck) return;
+        clearInterval(readyCheck.timer);
+        readyCheck = null;
+        const button = $('#play-button');
+        button.classList.remove('ready-check');
+        button.disabled = false;
+        $('#queue-status').textContent = message;
+        renderMenu();
+      }
       $('#play-button').addEventListener('click', () => {
         const button = $('#play-button');
         if (profile.matchType === 'friends') { openLobby(); return; }
+        if (readyCheck) { endReadyCheck(); launch(); return; }
         button.disabled = true;
         if (profile.matchType !== 'ai') {
           // Placeholder for the future online queues (ranked and unranked): a short search, then AI stand-ins fill the lobby.
@@ -5674,8 +5795,17 @@
           const status = $('#queue-status');
           const queueName = profile.matchType === 'ranked' ? 'ranked' : 'unranked';
           const ticker = setInterval(() => { dots = (dots + 1) % 4; status.textContent = `Searching for ${queueName} ${MODES[profile.mode]} opponents${'.'.repeat(dots)}`; }, 300);
-          setTimeout(() => { clearInterval(ticker); status.textContent = 'No players found · AI stand-ins joining'; }, 1500);
-          setTimeout(launch, 2300);
+          setTimeout(() => {
+            clearInterval(ticker);
+            // Match found: ready up.
+            let left = READY_SECONDS;
+            const show = () => { button.textContent = `Ready! (${left})`; status.textContent = 'Match found · press Ready to join'; };
+            readyCheck = { timer: setInterval(() => { left--; if (left <= 0) endReadyCheck('Match declined · you did not ready up in time'); else show(); }, 1000) };
+            button.classList.add('ready-check');
+            button.disabled = false;
+            show();
+            menuSound('found');
+          }, 1800);
         } else launch();
       });
       // RP change for a result, before it is applied. Placement matches swing harder; draws change nothing.
