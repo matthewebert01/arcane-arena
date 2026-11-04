@@ -6346,8 +6346,10 @@
       if (window.ResizeObserver) new ResizeObserver(sizePreview).observe(previewCanvas);
 
       // ---------- Live map preview behind the menu ----------
-      // A small arena drawn behind the menu: a fresh maze with torches and glowing vaults, gnome wizards walking
-      // the corridors and trading spells, and a camera that cuts between shots. Lighter on Low graphics.
+      // A small arena drawn behind the menu that cycles through every arena: a fresh maze in that arena's colours
+      // and sky, torches and glowing vaults, gnome wizards walking the corridors and trading spells, and a camera
+      // that cuts between shots. Frostveil shows its portal gates (the gnomes hop through them) and Sunspire its
+      // terraces. Picking an arena in the menu jumps the preview to it. Lighter on Low graphics.
       const menuBackdrop3D = (() => {
         const canvas = $('#menu-backdrop'), caption = $('#menu-backdrop-caption'), fade = $('#menu-backdrop-fade');
         if (!canvas || !window.THREE) return null;
@@ -6360,30 +6362,52 @@
         renderer.toneMappingExposure = .82;
         renderer.shadowMap.enabled = !low;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        const scene = new THREE.Scene();
-        scene.fog = new THREE.FogExp2('#2c1c58', .014);
         const camera = new THREE.PerspectiveCamera(52, 1, .5, 200);
-        addNightSky(scene);
-        scene.add(new THREE.HemisphereLight('#e2d4ff', '#3d2a66', .85));
-        const sun = new THREE.DirectionalLight('#ffd9a0', 1.3);
-        sun.position.set(-20, 38, 22);
-        if (!low) {
-          sun.castShadow = true;
-          sun.shadow.mapSize.set(1024, 1024);
-          Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, near: 5, far: 100 });
-          sun.shadow.bias = -.0008;
-          sun.shadow.normalBias = .04;
-        }
-        scene.add(sun);
 
-        // Maze: carved at random, then every dead end opened up (like the real maps).
-        const SIZE = 9, CELL = 8, HALF = SIZE * CELL / 2;
-        const at = index => (index - (SIZE - 1) / 2) * CELL;
-        const cells = Array.from({ length: SIZE }, () => Array.from({ length: SIZE }, () => ({ n: true, e: true, s: true, w: true, seen: false })));
+        const SIZE = 9, CELL = 8, HALF = SIZE * CELL / 2, MID = (SIZE - 1) / 2, LAST = SIZE - 1;
+        const at = index => (index - MID) * CELL;
         const STEPS = [[-1, 0, 'n', 's'], [0, 1, 'e', 'w'], [1, 0, 's', 'n'], [0, -1, 'w', 'e']];
         const inside = (row, col) => row >= 0 && col >= 0 && row < SIZE && col < SIZE;
-        const open = (row, col, [dRow, dCol, wall, back]) => { cells[row][col][wall] = false; cells[row + dRow][col + dCol][back] = false; };
-        {
+        const cellOf = value => Math.max(0, Math.min(LAST, Math.round(value / CELL + MID)));
+        const glow = glowSpriteTexture();
+        const matrix = new THREE.Matrix4(), up = new THREE.Vector3(0, 1, 0);
+        const BOLT_COLORS = { grovewarden: '#8dff8a', stormcaller: '#a8e4ff', embersage: '#ff9a4a' };
+        const START_CELLS = [[1, 1], [7, 7], [1, 7]];
+        // Frostveil's gates sit against the middle of each outer wall; north–south and west–east are linked.
+        const GATES = [{ cell: [0, 4], inward: [1, 0], partner: 1 }, { cell: [8, 4], inward: [-1, 0], partner: 0 }, { cell: [4, 0], inward: [0, 1], partner: 3 }, { cell: [4, 8], inward: [0, -1], partner: 2 }];
+        const GATE_COLORS = ['#c08cff', '#c08cff', '#ff8ad8', '#ff8ad8'];
+
+        // The gnomes stay the same from arena to arena (one of each school, in random skins).
+        const wizards = WIZARD_MODELS.map((info, index) => {
+          const skins = COSMETICS.filter(item => item.type === 'skin' && item.model === info.id);
+          const skin = skins[Math.floor(Math.random() * skins.length)];
+          const body = buildWizardModel({ model: info.id, color: DEFAULT_ROBES[info.id], crystalColor: BOLT_COLORS[info.id], ...cosmeticLook({ model: info.id, skin: skin && skin.id }) });
+          body.scale.setScalar(.85);
+          if (!low) body.traverse(part => { if (part.isMesh && !(part.material && part.material.transparent)) part.castShadow = true; });
+          return { model: info.id, body, index, row: 0, col: 0, x: 0, z: 0, path: [], stride: 0, gait: 0, flash: 0, castTimer: 2 + index * 1.5, facing: 0 };
+        });
+
+        // One arena's scene: sky, lights, maze, terrain, decorations, torches, vaults and (on Frostveil) gates.
+        function buildWorld(mapId) {
+          const map = ARENA_MAPS[mapId];
+          const scene = new THREE.Scene();
+          scene.fog = new THREE.FogExp2(map.fog[0], map.fog[1] * 1.27);
+          addNightSky(scene, map.sky);
+          scene.add(new THREE.HemisphereLight(map.light.sky, map.light.ground, .85));
+          const sun = new THREE.DirectionalLight(map.light.sun, 1.3);
+          sun.position.set(...map.light.sunAt);
+          if (!low) {
+            sun.castShadow = true;
+            sun.shadow.mapSize.set(1024, 1024);
+            Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, near: 5, far: 110 });
+            sun.shadow.bias = -.0008;
+            sun.shadow.normalBias = .04;
+          }
+          scene.add(sun);
+
+          // Maze: carved at random, then every dead end opened up (like the real maps).
+          const cells = Array.from({ length: SIZE }, () => Array.from({ length: SIZE }, () => ({ n: true, e: true, s: true, w: true, seen: false })));
+          const open = (row, col, [dRow, dCol, wall, back]) => { cells[row][col][wall] = false; cells[row + dRow][col + dCol][back] = false; };
           const stack = [[4, 4]];
           cells[4][4].seen = true;
           while (stack.length) {
@@ -6399,115 +6423,173 @@
             const closed = STEPS.filter(([dRow, dCol, wall]) => cells[row][col][wall] && inside(row + dRow, col + dCol));
             if (4 - closed.length - STEPS.filter(([dRow, dCol]) => !inside(row + dRow, col + dCol)).length <= 1 && closed.length) open(row, col, closed[Math.floor(Math.random() * closed.length)]);
           }
-        }
-        const passable = (row, col, step) => inside(row + step[0], col + step[1]) && !cells[row][col][step[2]];
+          const passable = (row, col, step) => inside(row + step[0], col + step[1]) && !cells[row][col][step[2]];
 
-        // Floor, walls and pillars (instanced: one draw call each).
-        const stone = createStoneTextures(), floorTex = createFloorTextures();
-        floorTex.map.repeat.set(SIZE, SIZE); floorTex.bump.repeat.set(SIZE, SIZE);
-        const ground = new THREE.Mesh(new THREE.PlaneGeometry(SIZE * CELL, SIZE * CELL), new THREE.MeshStandardMaterial({ color: '#6c5ab8', map: floorTex.map, bumpMap: floorTex.bump, bumpScale: .04, roughness: .9 }));
-        ground.rotation.x = -Math.PI / 2;
-        ground.receiveShadow = !low;
-        scene.add(ground);
-        const segments = [];
-        for (let row = 0; row < SIZE; row++) for (let col = 0; col < SIZE; col++) {
-          const cell = cells[row][col], x = at(col), z = at(row);
-          if (cell.n) segments.push([x, z - CELL / 2, 0]);
-          if (cell.w) segments.push([x - CELL / 2, z, Math.PI / 2]);
-          if (row === SIZE - 1) segments.push([x, z + CELL / 2, 0]);
-          if (col === SIZE - 1) segments.push([x + CELL / 2, z, Math.PI / 2]);
-        }
-        const wallMaterial = new THREE.MeshStandardMaterial({ color: '#ece4ff', map: stone.map, bumpMap: stone.bump, bumpScale: .05, roughness: .9 });
-        const wallGeometry = new THREE.BoxGeometry(CELL + .65, 4.8, .65);
-        worldUVs(wallGeometry, CELL + .65, 4.8, .65, 4.8);
-        wallGeometry.translate(0, 2.4, 0);
-        const walls = new THREE.InstancedMesh(wallGeometry, wallMaterial, segments.length);
-        const pillarGeometry = new THREE.BoxGeometry(.8, 5.1, .8);
-        worldUVs(pillarGeometry, .8, 5.1, .8, 4.8);
-        pillarGeometry.translate(0, 2.55, 0);
-        const pillars = new THREE.InstancedMesh(pillarGeometry, wallMaterial, (SIZE + 1) * (SIZE + 1));
-        const capGeometry = new THREE.BoxGeometry(CELL + .8, .2, .8).translate(0, 4.8, 0);
-        const caps = new THREE.InstancedMesh(capGeometry, new THREE.MeshStandardMaterial({ color: '#544883', roughness: .85 }), segments.length);
-        const matrix = new THREE.Matrix4();
-        segments.forEach(([x, z, turn], index) => {
-          matrix.makeRotationY(turn).setPosition(x, 0, z);
-          walls.setMatrixAt(index, matrix);
-          caps.setMatrixAt(index, matrix);
-        });
-        let pillarIndex = 0;
-        for (let row = 0; row <= SIZE; row++) for (let col = 0; col <= SIZE; col++) pillars.setMatrixAt(pillarIndex++, matrix.makeTranslation(-HALF + col * CELL, 0, -HALF + row * CELL));
-        [walls, pillars, caps].forEach(mesh => { mesh.castShadow = mesh.receiveShadow = !low; scene.add(mesh); });
-
-        // Glowing mushrooms and grass at the foot of the walls.
-        {
-          const capsGeo = new THREE.SphereGeometry(.12, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2);
-          const mushrooms = new THREE.InstancedMesh(capsGeo, new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: '#ffffff', emissiveIntensity: .7 }), 90);
-          const blades = new THREE.InstancedMesh(new THREE.ConeGeometry(.05, .45, 3).translate(0, .22, 0), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .8 }), 500);
-          const tint = new THREE.Color(), colors = ['#5ef0ff', '#ff7ad9', '#ffd36b', '#9dff8a'], greens = ['#4f9a4a', '#6cbf5a', '#3f8a6a'];
-          const near = () => {
-            const [x, z, turn] = segments[Math.floor(Math.random() * segments.length)];
-            const along = (Math.random() - .5) * (CELL - 1), out = (Math.random() < .5 ? -1 : 1) * (.45 + Math.random() * .3);
-            return turn ? [x + out, z + along] : [x + along, z + out];
+          // Terrain (Sunspire): a raised centre with ramps, the same shape as the real arena.
+          const levels = cells.map((line, row) => line.map((_, col) => {
+            if (!map.terrain) return 0;
+            const ring = Math.max(Math.abs(row - MID), Math.abs(col - MID));
+            return ring <= 1 ? 2 : ring === 2 ? 1 : 0;
+          }));
+          const blend = t => { const k = Math.max(0, Math.min(1, (t - .25) / .5)); return k * k * (3 - 2 * k); };
+          const ground = (x, z) => {
+            if (!map.terrain) return 0;
+            const gx = Math.max(0, Math.min(LAST, x / CELL + MID)), gz = Math.max(0, Math.min(LAST, z / CELL + MID));
+            const col = Math.min(Math.floor(gx), LAST - 1), row = Math.min(Math.floor(gz), LAST - 1);
+            const sx = blend(gx - col), sz = blend(gz - row);
+            const top = levels[row][col] + (levels[row][col + 1] - levels[row][col]) * sx;
+            const bottom = levels[row + 1][col] + (levels[row + 1][col + 1] - levels[row + 1][col]) * sx;
+            return (top + (bottom - top) * sz) * 1.7;
           };
-          for (let index = 0; index < 90; index++) {
-            const [x, z] = near(), size = .7 + Math.random() * .8;
-            mushrooms.setMatrixAt(index, matrix.compose(new THREE.Vector3(x, .1 * size, z), new THREE.Quaternion(), new THREE.Vector3(size, size * .8, size)));
-            mushrooms.setColorAt(index, tint.set(colors[index % colors.length]));
+          const groundTop = (x, z, width, depth) => {
+            if (!map.terrain) return 0;
+            let top = 0;
+            for (const fx of [-.5, -.25, 0, .25, .5]) for (const fz of [-.5, -.25, 0, .25, .5]) top = Math.max(top, ground(x + fx * width, z + fz * depth));
+            return top;
+          };
+
+          // Floor (bent over the terrain on Sunspire), walls, pillars and caps (instanced: one draw call each).
+          const stone = createStoneTextures(map.stone), floorTex = createFloorTextures(map.floor);
+          floorTex.map.repeat.set(SIZE, SIZE); floorTex.bump.repeat.set(SIZE, SIZE);
+          const segmentsPerSide = map.terrain ? 72 : 1;
+          const floorGeometry = new THREE.PlaneGeometry(SIZE * CELL, SIZE * CELL, segmentsPerSide, segmentsPerSide).rotateX(-Math.PI / 2);
+          if (map.terrain) {
+            const position = floorGeometry.attributes.position;
+            for (let index = 0; index < position.count; index++) position.setY(index, ground(position.getX(index), position.getZ(index)));
+            floorGeometry.computeVertexNormals();
           }
-          for (let index = 0; index < 500; index++) {
-            const [x, z] = near();
-            matrix.compose(new THREE.Vector3(x, 0, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.random() * .6 - .3, Math.random() * 3, Math.random() * .6 - .3)), new THREE.Vector3(1, .6 + Math.random() * .8, 1));
-            blades.setMatrixAt(index, matrix);
-            blades.setColorAt(index, tint.set(greens[index % greens.length]));
+          const floor = new THREE.Mesh(floorGeometry, new THREE.MeshStandardMaterial({ color: map.floor.tiles[1], map: floorTex.map, bumpMap: floorTex.bump, bumpScale: .04, roughness: .9 }));
+          floor.receiveShadow = !low;
+          scene.add(floor);
+          const segments = [];
+          for (let row = 0; row < SIZE; row++) for (let col = 0; col < SIZE; col++) {
+            const cell = cells[row][col], x = at(col), z = at(row);
+            if (cell.n) segments.push([x, z - CELL / 2, 0]);
+            if (cell.w) segments.push([x - CELL / 2, z, Math.PI / 2]);
+            if (row === LAST) segments.push([x, z + CELL / 2, 0]);
+            if (col === LAST) segments.push([x + CELL / 2, z, Math.PI / 2]);
           }
-          scene.add(mushrooms, blades);
+          const wallMaterial = new THREE.MeshStandardMaterial({ color: map.walls.stone, map: stone.map, bumpMap: stone.bump, bumpScale: .05, roughness: .9 });
+          const wallGeometry = new THREE.BoxGeometry(CELL + .65, 4.8, .65);
+          worldUVs(wallGeometry, CELL + .65, 4.8, .65, 4.8);
+          wallGeometry.translate(0, 2.4, 0);
+          const walls = new THREE.InstancedMesh(wallGeometry, wallMaterial, segments.length);
+          const pillarGeometry = new THREE.BoxGeometry(.8, 5.1, .8);
+          worldUVs(pillarGeometry, .8, 5.1, .8, 4.8);
+          pillarGeometry.translate(0, 2.55, 0);
+          const pillars = new THREE.InstancedMesh(pillarGeometry, wallMaterial, (SIZE + 1) * (SIZE + 1));
+          const capGeometry = new THREE.BoxGeometry(CELL + .8, .2, .8).translate(0, 4.8, 0);
+          const caps = new THREE.InstancedMesh(capGeometry, new THREE.MeshStandardMaterial({ color: map.walls.cap, roughness: .85 }), segments.length);
+          // On terraces each wall is stretched so it stands a full storey above the highest ground beside it.
+          const turned = new THREE.Quaternion(), position = new THREE.Vector3(), stretch = new THREE.Vector3();
+          segments.forEach(([x, z, turn], index) => {
+            const top = groundTop(x, z, turn ? .65 : CELL + .65, turn ? CELL + .65 : .65) + 4.8;
+            matrix.compose(position.set(x, 0, z), turned.setFromAxisAngle(up, turn), stretch.set(1, top / 4.8, 1));
+            walls.setMatrixAt(index, matrix);
+            caps.setMatrixAt(index, matrix);
+          });
+          let pillarIndex = 0;
+          for (let row = 0; row <= SIZE; row++) for (let col = 0; col <= SIZE; col++) {
+            const x = -HALF + col * CELL, z = -HALF + row * CELL, top = groundTop(x, z, 1.4, 1.4) + 5.1;
+            pillars.setMatrixAt(pillarIndex++, matrix.compose(position.set(x, 0, z), turned.identity(), stretch.set(1, top / 5.1, 1)));
+          }
+          [walls, pillars, caps].forEach(mesh => { mesh.castShadow = mesh.receiveShadow = !low; scene.add(mesh); });
+
+          // Glowing mushrooms (or crystals, or embers) and grass at the foot of the walls, in the arena's colours.
+          {
+            const mushrooms = new THREE.InstancedMesh(new THREE.SphereGeometry(.12, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: '#ffffff', emissiveIntensity: .7 }), 90);
+            const blades = new THREE.InstancedMesh(new THREE.ConeGeometry(.05, .45, 3).translate(0, .22, 0), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .8 }), 500);
+            const tint = new THREE.Color();
+            const near = () => {
+              const [x, z, turn] = segments[Math.floor(Math.random() * segments.length)];
+              const along = (Math.random() - .5) * (CELL - 1), out = (Math.random() < .5 ? -1 : 1) * (.45 + Math.random() * .3);
+              return turn ? [x + out, z + along] : [x + along, z + out];
+            };
+            for (let index = 0; index < 90; index++) {
+              const [x, z] = near(), size = .7 + Math.random() * .8;
+              mushrooms.setMatrixAt(index, matrix.compose(new THREE.Vector3(x, ground(x, z) + .1 * size, z), new THREE.Quaternion(), new THREE.Vector3(size, size * .8, size)));
+              mushrooms.setColorAt(index, tint.set(map.decor.caps[index % map.decor.caps.length]));
+            }
+            for (let index = 0; index < 500; index++) {
+              const [x, z] = near();
+              matrix.compose(new THREE.Vector3(x, ground(x, z), z), new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.random() * .6 - .3, Math.random() * 3, Math.random() * .6 - .3)), new THREE.Vector3(1, .6 + Math.random() * .8, 1));
+              blades.setMatrixAt(index, matrix);
+              blades.setColorAt(index, tint.set(map.decor.blades[index % map.decor.blades.length]));
+            }
+            scene.add(mushrooms, blades);
+          }
+
+          // Torches on a handful of walls (a few real lights; the rest just glow).
+          const flames = [];
+          segments.filter(() => Math.random() < .14).slice(0, 14).forEach(([x, z, turn], index) => {
+            const side = Math.random() < .5 ? -1 : 1, fx = turn ? x + side * .5 : x + 1.6, fz = turn ? z + 1.6 : z + side * .5, floorY = ground(fx, fz);
+            const flame = new THREE.Mesh(new THREE.OctahedronGeometry(.2, 0), new THREE.MeshStandardMaterial({ color: map.torch.flame, emissive: map.torch.glow, emissiveIntensity: 2.6 }));
+            flame.position.set(fx, floorY + 2.5, fz);
+            scene.add(flame);
+            let light = null;
+            if (index < (low ? 2 : 6)) { light = new THREE.PointLight(map.torch.light, 1.8, 12); light.position.set(fx, floorY + 2.7, fz); scene.add(light); }
+            flames.push({ flame, light, phase: Math.random() * 6 });
+          });
+
+          // Three vaults with floating treasures and beams of light.
+          const vaults = START_CELLS.map(([row, col], index) => {
+            const color = ['#5ef0ff', '#ff9a6b', '#b48cff'][index];
+            const group = new THREE.Group();
+            const base = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.5, .28, 24), new THREE.MeshStandardMaterial({ color: map.walls.border, roughness: .7 }));
+            base.position.y = .12;
+            base.receiveShadow = !low;
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(1.7, .07, 8, 48), new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.4 }));
+            ring.rotation.x = -Math.PI / 2;
+            ring.position.y = .3;
+            const gem = new THREE.Mesh(new THREE.OctahedronGeometry(.6, 0), new THREE.MeshStandardMaterial({ color: '#ffe08a', emissive: '#ffb84a', emissiveIntensity: 1.1, metalness: .4, roughness: .25, envMap: studioEnvMap() }));
+            gem.position.y = 2;
+            const beam = new THREE.Mesh(new THREE.CylinderGeometry(.5, .9, 26, 16, 1, true), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .16, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+            beam.position.y = 13;
+            const lamp = new THREE.PointLight(color, 2, 11);
+            lamp.position.y = 2;
+            group.add(base, ring, gem, beam, lamp);
+            group.position.set(at(col), ground(at(col), at(row)), at(row));
+            scene.add(group);
+            return { group, gem, beam };
+          });
+
+          // Frostveil's portal gates: a stone ring with a glowing swirl, standing against the outer wall.
+          const gates = !map.portals ? [] : GATES.map((gate, index) => {
+            const color = GATE_COLORS[index], [row, col] = gate.cell, [dRow, dCol] = gate.inward;
+            const group = new THREE.Group();
+            group.position.set(at(col) - dCol * 2.2, 0, at(row) - dRow * 2.2);
+            group.rotation.y = Math.atan2(dCol, dRow);
+            const glowMaterial = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.6, roughness: .3 });
+            const frameMaterial = new THREE.MeshStandardMaterial({ color: map.walls.stone, map: stone.map, roughness: .9 });
+            const frame = new THREE.Mesh(new THREE.TorusGeometry(1.6, .22, 12, 48), frameMaterial);
+            const inner = new THREE.Mesh(new THREE.TorusGeometry(1.42, .06, 8, 48), glowMaterial);
+            const surface = new THREE.Mesh(new THREE.CircleGeometry(1.42, 40), new THREE.MeshBasicMaterial({ color, map: glow, transparent: true, opacity: .85, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
+            [frame, inner, surface].forEach(part => { part.position.y = 2.05; group.add(part); });
+            const dais = new THREE.Mesh(new THREE.CylinderGeometry(2, 2.3, .22, 28), frameMaterial);
+            dais.position.y = .1;
+            for (const side of [-1, 1]) { const foot = new THREE.Mesh(new THREE.BoxGeometry(.5, .6, .5), frameMaterial); foot.position.set(side * 1.05, .5, 0); group.add(foot); }
+            const light = new THREE.PointLight(color, 2.2, 11);
+            light.position.y = 2.1;
+            group.add(dais, light);
+            if (!low) group.traverse(part => { if (part.isMesh && part !== surface) part.castShadow = true; });
+            scene.add(group);
+            return { ...gate, color, group, surface, light, x: group.position.x, z: group.position.z };
+          });
+
+          // A shot that shows off the arena's twist.
+          const feature = map.portals
+            ? { name: 'Waygate', place: (time, shot) => {
+              const gate = gates[shot.gate % gates.length], angle = Math.sin(time * .25) * .6, out = new THREE.Vector3(gate.inward[1], 0, gate.inward[0]);
+              const side = new THREE.Vector3(-out.z, 0, out.x);
+              camera.position.set(gate.x + out.x * 8 + side.x * angle * 6, 4.2, gate.z + out.z * 8 + side.z * angle * 6);
+              camera.lookAt(gate.x, 2, gate.z);
+            } }
+            : map.terrain
+              ? { name: 'The high ground', place: time => { const angle = time * .07; camera.position.set(Math.cos(angle) * 21, 9, Math.sin(angle) * 21); camera.lookAt(0, 3.4, 0); } }
+              : null;
+          return { map, scene, cells, passable, ground, flames, vaults, gates, feature };
         }
 
-        // Torches on a handful of walls (a few real lights; the rest just glow).
-        const flames = [];
-        segments.filter(() => Math.random() < .14).slice(0, 14).forEach(([x, z, turn], index) => {
-          const side = Math.random() < .5 ? -1 : 1, fx = turn ? x + side * .5 : x + 1.6, fz = turn ? z + 1.6 : z + side * .5;
-          const flame = new THREE.Mesh(new THREE.OctahedronGeometry(.2, 0), new THREE.MeshStandardMaterial({ color: '#ffc16d', emissive: '#e77833', emissiveIntensity: 2.6 }));
-          flame.position.set(fx, 2.5, fz);
-          scene.add(flame);
-          let light = null;
-          if (index < (low ? 2 : 6)) { light = new THREE.PointLight('#ffa64d', 1.8, 12); light.position.set(fx, 2.7, fz); scene.add(light); }
-          flames.push({ flame, light, phase: Math.random() * 6 });
-        });
-
-        // Three vaults with floating treasures and beams of light.
-        const vaults = [[1, 1, '#5ef0ff'], [7, 7, '#ff9a6b'], [1, 7, '#b48cff']].map(([row, col, color]) => {
-          const group = new THREE.Group();
-          const base = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.5, .28, 24), new THREE.MeshStandardMaterial({ color: '#3f3460', roughness: .7 }));
-          base.position.y = .12;
-          base.receiveShadow = !low;
-          const ring = new THREE.Mesh(new THREE.TorusGeometry(1.7, .07, 8, 48), new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.4 }));
-          ring.rotation.x = -Math.PI / 2;
-          ring.position.y = .3;
-          const gem = new THREE.Mesh(new THREE.OctahedronGeometry(.6, 0), new THREE.MeshStandardMaterial({ color: '#ffe08a', emissive: '#ffb84a', emissiveIntensity: 1.1, metalness: .4, roughness: .25, envMap: studioEnvMap() }));
-          gem.position.y = 2;
-          const beam = new THREE.Mesh(new THREE.CylinderGeometry(.5, .9, 26, 16, 1, true), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .16, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
-          beam.position.y = 13;
-          const lamp = new THREE.PointLight(color, 2, 11);
-          lamp.position.y = 2;
-          group.add(base, ring, gem, beam, lamp);
-          group.position.set(at(col), 0, at(row));
-          scene.add(group);
-          return { group, gem, beam };
-        });
-
-        // Wizards: one of each school, wearing random skins, walking from cell to cell.
-        const BOLT_COLORS = { grovewarden: '#8dff8a', stormcaller: '#a8e4ff', embersage: '#ff9a4a' };
-        const wizards = WIZARD_MODELS.map((info, index) => {
-          const skins = COSMETICS.filter(item => item.type === 'skin' && item.model === info.id);
-          const skin = skins[Math.floor(Math.random() * skins.length)];
-          const body = buildWizardModel({ model: info.id, color: DEFAULT_ROBES[info.id], crystalColor: BOLT_COLORS[info.id], ...cosmeticLook({ model: info.id, skin: skin && skin.id }) });
-          body.scale.setScalar(.85);
-          if (!low) body.traverse(part => { if (part.isMesh && !(part.material && part.material.transparent)) part.castShadow = true; });
-          scene.add(body);
-          const [row, col] = [[1, 1], [7, 7], [1, 7]][index];
-          return { model: info.id, body, row, col, x: at(col), z: at(row), path: [], stride: 0, gait: 0, flash: 0, castTimer: 2 + index * 1.5, facing: 0 };
-        });
         // Picks a random reachable cell and walks there (breadth-first route through open walls).
         function planRoute(wizard) {
           const goal = [Math.floor(Math.random() * SIZE), Math.floor(Math.random() * SIZE)];
@@ -6517,7 +6599,7 @@
             if (row === goal[0] && col === goal[1]) break;
             for (const step of STEPS) {
               const key = `${row + step[0]},${col + step[1]}`;
-              if (passable(row, col, step) && !from.has(key)) { from.set(key, [row, col]); queue.push([row + step[0], col + step[1]]); }
+              if (world.passable(row, col, step) && !from.has(key)) { from.set(key, [row, col]); queue.push([row + step[0], col + step[1]]); }
             }
           }
           const path = [];
@@ -6525,14 +6607,13 @@
           wizard.path = path;
         }
         // Spells: a glowing orb that flies down the corridor until it meets a wall or a wizard.
-        const glow = glowSpriteTexture(), bolts = [], sparks = [];
-        const cellOf = value => Math.max(0, Math.min(SIZE - 1, Math.round(value / CELL + (SIZE - 1) / 2)));
+        const bolts = [], sparks = [];
         function spark(position, color, count = 10) {
           for (let index = 0; index < count; index++) {
             const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
             sprite.position.copy(position);
             sprite.scale.setScalar(.5);
-            scene.add(sprite);
+            world.scene.add(sprite);
             sparks.push({ sprite, velocity: new THREE.Vector3(Math.random() - .5, Math.random() * .8, Math.random() - .5).multiplyScalar(5), life: .5 });
           }
         }
@@ -6543,8 +6624,8 @@
           const color = BOLT_COLORS[wizard.model];
           const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
           sprite.scale.setScalar(1.3);
-          sprite.position.set(wizard.x + dx / length * .8, 1.5, wizard.z + dz / length * .8);
-          scene.add(sprite);
+          sprite.position.set(wizard.x + dx / length * .8, world.ground(wizard.x, wizard.z) + 1.5, wizard.z + dz / length * .8);
+          world.scene.add(sprite);
           bolts.push({ sprite, dx: dx / length, dz: dz / length, owner: wizard, color, row: cellOf(sprite.position.z), col: cellOf(sprite.position.x), life: 3 });
         }
         // Can `wizard` see `other` straight down a corridor (same row or column, no walls between)?
@@ -6552,29 +6633,70 @@
           if (wizard.row !== other.row && wizard.col !== other.col) return false;
           const step = STEPS.find(([dRow, dCol]) => Math.sign(other.row - wizard.row) === dRow && Math.sign(other.col - wizard.col) === dCol);
           if (!step) return false;
-          for (let row = wizard.row, col = wizard.col; row !== other.row || col !== other.col; row += step[0], col += step[1]) if (!passable(row, col, step)) return false;
+          for (let row = wizard.row, col = wizard.col; row !== other.row || col !== other.col; row += step[0], col += step[1]) if (!world.passable(row, col, step)) return false;
           return true;
         }
+        // Frostveil: a gnome arriving at a gate sometimes steps through and comes out of its partner.
+        function maybeTravel(wizard) {
+          const gate = world.gates.find(item => item.cell[0] === wizard.row && item.cell[1] === wizard.col);
+          if (!gate || Math.random() > .6) return;
+          const exit = world.gates[gate.partner];
+          spark(new THREE.Vector3(wizard.x, 1.5, wizard.z), gate.color, 16);
+          Object.assign(wizard, { row: exit.cell[0], col: exit.cell[1], x: at(exit.cell[1]), z: at(exit.cell[0]), path: [] });
+          spark(new THREE.Vector3(wizard.x, 1.5, wizard.z), gate.color, 16);
+        }
 
-        // Camera shots, cycled with a short fade between them.
+        // Switching arenas: build it the first time (it's kept for later), move the gnomes in, clear stray spells.
+        const worlds = {};
+        let world = null;
+        function useWorld(mapId) {
+          world = worlds[mapId] || (worlds[mapId] = buildWorld(mapId));
+          renderer.toneMappingExposure = .82 * world.map.exposure;
+          for (const item of [...bolts, ...sparks]) { item.sprite.parent && item.sprite.parent.remove(item.sprite); item.sprite.material.dispose(); }
+          bolts.length = sparks.length = 0;
+          wizards.forEach(wizard => {
+            const [row, col] = START_CELLS[wizard.index];
+            Object.assign(wizard, { row, col, x: at(col), z: at(row), path: [] });
+            world.scene.add(wizard.body);
+          });
+        }
+
+        // Camera shots, cycled with a short fade between them. Each arena gets two shots: an overview first,
+        // then a closer look (its twist, a gnome on the hunt, a vault or a flight over the walls).
         const SHOTS = [
           { name: 'Overview', place: time => { const angle = time * .05; camera.position.set(Math.cos(angle) * 44, 36, Math.sin(angle) * 44); camera.lookAt(0, 0, 0); } },
           { name: 'On the hunt', place: (time, shot) => {
             const wizard = wizards[shot.wizard], ahead = new THREE.Vector3(-Math.sin(wizard.body.rotation.y), 0, -Math.cos(wizard.body.rotation.y));
-            const want = new THREE.Vector3(wizard.x - ahead.x * 7, 9.5, wizard.z - ahead.z * 7);
+            const floorY = world.ground(wizard.x, wizard.z);
+            const want = new THREE.Vector3(wizard.x - ahead.x * 7, floorY + 9.5, wizard.z - ahead.z * 7);
             camera.position.lerp(want, shot.fresh ? 1 : .04);
-            shot.look = (shot.look || new THREE.Vector3()).lerp(new THREE.Vector3(wizard.x + ahead.x * 4, 1.2, wizard.z + ahead.z * 4), shot.fresh ? 1 : .08);
+            shot.look = (shot.look || new THREE.Vector3()).lerp(new THREE.Vector3(wizard.x + ahead.x * 4, floorY + 1.2, wizard.z + ahead.z * 4), shot.fresh ? 1 : .08);
             camera.lookAt(shot.look);
           } },
-          { name: 'Treasure vault', place: (time, shot) => { const vault = vaults[shot.vault].group.position, angle = time * .18; camera.position.set(vault.x + Math.cos(angle) * 10, 6.5, vault.z + Math.sin(angle) * 10); camera.lookAt(vault.x, 1.6, vault.z); } },
+          { name: 'Treasure vault', place: (time, shot) => { const vault = world.vaults[shot.vault].group.position, angle = time * .18; camera.position.set(vault.x + Math.cos(angle) * 10, vault.y + 6.5, vault.z + Math.sin(angle) * 10); camera.lookAt(vault.x, vault.y + 1.6, vault.z); } },
           { name: 'Above the walls', place: time => { const t = (time * .025) % 1; camera.position.set(-HALF + t * SIZE * CELL, 15, Math.sin(time * .1) * 12); camera.lookAt(camera.position.x + 14, 0, camera.position.z * .3); } }
         ];
-        let shot = null, shotTime = 0, shotIndex = -1;
+        const SHOT_LENGTH = 9;
+        let mapIndex = Math.max(0, ARENA_ORDER.indexOf(profile.map)), pendingMap = null, shotsOnMap = 0;
+        let shot = null, shotTime = 0;
         function nextShot() {
-          shotIndex = (shotIndex + 1) % SHOTS.length;
-          shot = { ...SHOTS[shotIndex], wizard: Math.floor(Math.random() * wizards.length), vault: Math.floor(Math.random() * vaults.length), fresh: true };
+          if (!world || pendingMap || shotsOnMap >= 2) {
+            mapIndex = pendingMap ? ARENA_ORDER.indexOf(pendingMap) : world ? (mapIndex + 1) % ARENA_ORDER.length : mapIndex;
+            pendingMap = null;
+            useWorld(ARENA_ORDER[mapIndex]);
+            shotsOnMap = 0;
+          }
+          let base;
+          if (shotsOnMap === 0) base = SHOTS[0];
+          else {
+            const pool = [SHOTS[1], SHOTS[2], SHOTS[3]];
+            // The arena's twist gets shown more often than not.
+            base = world.feature && Math.random() < .6 ? world.feature : pool[Math.floor(Math.random() * pool.length)];
+          }
+          shotsOnMap++;
+          shot = { ...base, wizard: Math.floor(Math.random() * wizards.length), vault: Math.floor(Math.random() * 3), gate: Math.floor(Math.random() * 4), fresh: true };
           shotTime = 0;
-          caption.textContent = `Map preview · The Verdant Hollow · ${shot.name}`;
+          caption.textContent = `Map preview · ${world.map.name} · ${shot.name}`;
         }
         nextShot();
 
@@ -6597,7 +6719,6 @@
           clock += dt;
           shotTime += dt;
           // Fade out near the end of each shot, cut, then fade back in.
-          const SHOT_LENGTH = 9;
           fade.style.opacity = shotTime > SHOT_LENGTH - .6 ? Math.min(1, (shotTime - (SHOT_LENGTH - .6)) / .6) : Math.max(0, 1 - shotTime / .6);
           if (shotTime >= SHOT_LENGTH) nextShot();
 
@@ -6610,7 +6731,7 @@
               const tx = at(next[1]), tz = at(next[0]), dx = tx - wizard.x, dz = tz - wizard.z, distance = Math.hypot(dx, dz);
               const step = Math.min(distance, 3.4 * dt);
               if (distance > .01) { wizard.x += dx / distance * step; wizard.z += dz / distance * step; wizard.facing = Math.atan2(dx, dz) + Math.PI; moved = step; }
-              if (distance - step < .05) { wizard.row = next[0]; wizard.col = next[1]; wizard.path.shift(); }
+              if (distance - step < .05) { wizard.row = next[0]; wizard.col = next[1]; wizard.path.shift(); if (world.gates.length) maybeTravel(wizard); }
             }
             // Duel anyone in a clear line down the corridor.
             wizard.castTimer -= dt;
@@ -6624,7 +6745,7 @@
             wizard.flash = Math.max(0, wizard.flash - dt * 3);
             const body = wizard.body;
             body.rotation.y += (((wizard.facing - body.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * Math.min(1, dt * 10);
-            body.position.set(wizard.x, Math.abs(Math.cos(wizard.stride)) * .09 * wizard.gait, wizard.z);
+            body.position.set(wizard.x, world.ground(wizard.x, wizard.z) + Math.abs(Math.cos(wizard.stride)) * .09 * wizard.gait, wizard.z);
             body.userData.gait(wizard.stride, wizard.gait);
             body.userData.castPose(wizard.flash);
             body.userData.animate(clock + index);
@@ -6633,15 +6754,16 @@
             const bolt = bolts[index], position = bolt.sprite.position;
             position.x += bolt.dx * 16 * dt;
             position.z += bolt.dz * 16 * dt;
+            position.y = world.ground(position.x, position.z) + 1.5;
             bolt.life -= dt;
             const row = cellOf(position.z), col = cellOf(position.x);
             const step = (row !== bolt.row || col !== bolt.col) && STEPS.find(([dRow, dCol]) => dRow === row - bolt.row && dCol === col - bolt.col);
-            const blocked = step ? !passable(bolt.row, bolt.col, step) : false;
+            const blocked = step ? !world.passable(bolt.row, bolt.col, step) : false;
             if (step && !blocked) { bolt.row = row; bolt.col = col; }
             const victim = wizards.find(other => other !== bolt.owner && Math.hypot(other.x - position.x, other.z - position.z) < .8);
             if (blocked || victim || bolt.life <= 0 || Math.abs(position.x) > HALF || Math.abs(position.z) > HALF) {
               spark(position, bolt.color, victim ? 16 : 8);
-              scene.remove(bolt.sprite);
+              world.scene.remove(bolt.sprite);
               bolt.sprite.material.dispose();
               bolts.splice(index, 1);
             }
@@ -6651,24 +6773,37 @@
             item.life -= dt;
             item.sprite.position.addScaledVector(item.velocity, dt);
             item.sprite.material.opacity = Math.max(0, item.life * 2);
-            if (item.life <= 0) { scene.remove(item.sprite); item.sprite.material.dispose(); sparks.splice(index, 1); }
+            if (item.life <= 0) { world.scene.remove(item.sprite); item.sprite.material.dispose(); sparks.splice(index, 1); }
           }
-          flames.forEach(torch => {
+          world.flames.forEach(torch => {
             const flicker = 1 + Math.sin(clock * 11 + torch.phase) * .12 + Math.sin(clock * 23 + torch.phase) * .06;
             torch.flame.scale.setScalar(flicker);
             if (torch.light) torch.light.intensity = 1.6 * flicker;
           });
-          vaults.forEach((vault, index) => {
+          world.vaults.forEach((vault, index) => {
             vault.gem.rotation.y = clock * 1.2 + index;
             vault.gem.position.y = 2 + Math.sin(clock * 1.6 + index) * .15;
             vault.beam.material.opacity = .13 + Math.sin(clock * 2 + index) * .04;
           });
+          world.gates.forEach((gate, index) => {
+            gate.surface.material.opacity = .7 + Math.sin(clock * 3 + index) * .2;
+            gate.surface.scale.setScalar(1 + Math.sin(clock * 2.2 + index) * .04);
+            gate.light.intensity = 2 + Math.sin(clock * 3 + index) * .5;
+          });
           shot.place(clock, shot);
           shot.fresh = false;
-          renderer.render(scene, camera);
+          renderer.render(world.scene, camera);
         }
         requestAnimationFrame(frame);
-        return { stop() { running = false; window.removeEventListener("resize", resize); renderer.dispose(); renderer.forceContextLoss(); } };
+        return {
+          // Jump to an arena (after a quick fade), e.g. when it's picked in the menu.
+          show(mapId) {
+            if (!ARENA_MAPS[mapId] || (world && world.map.id === mapId && !pendingMap)) return;
+            pendingMap = mapId;
+            shotTime = Math.max(shotTime, SHOT_LENGTH - .6);
+          },
+          stop() { running = false; window.removeEventListener("resize", resize); renderer.dispose(); renderer.forceContextLoss(); }
+        };
       })();
       // ---------- Progression: XP, levels, Gnome Chests and gold ----------
       const XP_PER_LEVEL = 1000;
@@ -7198,7 +7333,7 @@
       }
       $('#map-options').innerHTML = mapButtons('data-map');
       $('#lobby-maps').innerHTML = mapButtons('data-lobby-map');
-      document.querySelectorAll('[data-map]').forEach(button => button.addEventListener('click', () => { profile.map = button.dataset.map; save(); renderMenu(); }));
+      document.querySelectorAll('[data-map]').forEach(button => button.addEventListener('click', () => { profile.map = button.dataset.map; save(); renderMenu(); if (menuBackdrop3D) menuBackdrop3D.show(button.dataset.map); }));
       document.querySelectorAll('[data-lobby-map]').forEach(button => button.addEventListener('click', () => {
         if (online.host && online.lobby) onlineSend({ t: 'settings', mode: online.lobby.settings.mode, fillAI: online.lobby.settings.fillAI, map: button.dataset.lobbyMap });
       }));
