@@ -370,7 +370,7 @@
     .preview-card { display: flex; flex-direction: column; align-items: center; justify-content: space-between; text-align: center; }
     #preview { height: min(30vh, 300px); width: auto; max-width: 100%; aspect-ratio: .85; display: block; }
     /* Fade the 3D stage's edges into the card so it never looks like a box. */
-    #preview, #collection-preview { -webkit-mask-image: radial-gradient(ellipse 50% 52% at 50% 48%, #000 62%, #0000 100%); mask-image: radial-gradient(ellipse 50% 52% at 50% 48%, #000 62%, #0000 100%); }
+    #collection-preview { -webkit-mask-image: radial-gradient(ellipse 50% 52% at 50% 48%, #000 62%, #0000 100%); mask-image: radial-gradient(ellipse 50% 52% at 50% 48%, #000 62%, #0000 100%); }
     .preview-name { margin-top: 6px; font: 22px var(--serif); color: #f1ead2; word-break: break-word; }
     .preview-role { margin-top: 4px; color: var(--muted); font-size: 11px; }
     .mode-options, .type-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -944,6 +944,10 @@
       <div class="camera-modes">
         <button class="camera-mode" data-camera-mode="action" type="button"><strong>Action camera (recommended)</strong><small>Click the arena to capture the mouse. Mouse turns and aims, left click fires (hold to keep firing), right click cancels a wall preview. Easiest for strafing and shooting. Esc releases the mouse.</small></button>
         <button class="camera-mode" data-camera-mode="classic" type="button"><strong>Classic (drag)</strong><small>World of Warcraft style: right-drag to steer, left-drag to orbit the camera, click to fire.</small></button>
+      </div>
+      <div class="camera-modes blink-modes">
+        <button class="camera-mode" data-blink-mode="movement" type="button"><strong>Blink: movement direction</strong><small>Blink the way you're moving with your movement keys. Straight ahead when standing still.</small></button>
+        <button class="camera-mode" data-blink-mode="aim" type="button"><strong>Blink: aim direction</strong><small>Always blink where you're aiming, whichever way you're moving.</small></button>
       </div>
       <div class="camera-modes graphics-modes">
         <button class="camera-mode" data-graphics="high" type="button"><strong>Graphics: High</strong><small>Shadows, glowing magic, detailed stone and plants along the walls. Best on desktops and laptops.</small></button>
@@ -1537,7 +1541,8 @@
       }
       uv.needsUpdate = true;
     }
-    // Night sky: a deep violet gradient dome, stars and a glowing moon.
+    // Night sky: a gradient dome, stars and a glowing moon, returned as one group. Keep the group centred on the
+    // camera: a sky left at the middle of the map got its far side clipped off near the edges (a big circle).
     function addNightSky(scene, sky = window.ARENA_MAPS.verdant.sky) {
       const dome = new THREE.Mesh(new THREE.SphereGeometry(165, 32, 16), new THREE.ShaderMaterial({
         side: THREE.BackSide, depthWrite: false, fog: false,
@@ -1546,7 +1551,8 @@
         fragmentShader: 'uniform vec3 top; uniform vec3 middle; uniform vec3 horizon; varying vec3 vDir; void main() { float h = clamp(vDir.y, 0.0, 1.0); vec3 color = mix(horizon, middle, smoothstep(0.0, 0.25, h)); color = mix(color, top, smoothstep(0.25, 0.8, h)); gl_FragColor = linearToOutputTexel(vec4(color, 1.0)); }'
       }));
       dome.renderOrder = -10;
-      scene.add(dome);
+      const group = new THREE.Group();
+      group.add(dome);
       const starPositions = [];
       for (let index = 0; index < sky.stars; index++) {
         const angle = Math.random() * Math.PI * 2, height = Math.pow(Math.random(), .7) * .95 + .05;
@@ -1555,13 +1561,15 @@
       }
       const starGeometry = new THREE.BufferGeometry();
       starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
-      scene.add(new THREE.Points(starGeometry, new THREE.PointsMaterial({ color: '#fff4dc', size: 1.6, sizeAttenuation: false, fog: false, transparent: true, opacity: sky.starOpacity })));
+      group.add(new THREE.Points(starGeometry, new THREE.PointsMaterial({ color: '#fff4dc', size: 1.6, sizeAttenuation: false, fog: false, transparent: true, opacity: sky.starOpacity })));
       const moon = new THREE.Mesh(new THREE.SphereGeometry(sky.moonSize, 24, 16), new THREE.MeshBasicMaterial({ color: sky.moon, fog: false }));
       moon.position.set(...sky.moonAt);
       const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowSpriteTexture(), color: sky.halo, transparent: true, opacity: .55, depthWrite: false, fog: false, blending: THREE.AdditiveBlending }));
       halo.scale.setScalar(sky.moonSize * 6.9);
       halo.position.copy(moon.position);
-      scene.add(moon, halo);
+      group.add(moon, halo);
+      scene.add(group);
+      return group;
     }
     // Soft round glow used for the moon's halo.
     function glowSpriteTexture() {
@@ -2254,6 +2262,7 @@
       const minimapContext = minimap.getContext('2d');
       // The arena (map) for this match: its colours, sky and twist (portals or terrain).
       const arena = window.ARENA_MAPS[config.map] || window.ARENA_MAPS.verdant;
+      let skyDome = null;
       const scene = new THREE.Scene();
       scene.background = new THREE.Color(arena.background);
       scene.fog = new THREE.FogExp2(arena.fog[0], arena.fog[1]);
@@ -2644,8 +2653,11 @@
       }
       // Pillars cover the spots where wall boxes overlap, hiding flickering faces at corners and T-junctions.
       function addPillar(x, z, height = 4.8) {
-        const size = .8;
+        // A touch wider than the walls' top trim (.81) and taller than every wall it joins, so no faces line up
+        // exactly with a wall's (faces that line up flicker as the camera moves).
+        const size = .92;
         height += groundTop(x, z, 1.4, 1.4);
+        for (const wall of wallColliders) if (Math.abs(wall.x - x) <= wall.halfX + .5 && Math.abs(wall.z - z) <= wall.halfZ + .5) height = Math.max(height, wall.height + .02);
         const geometry = new THREE.BoxGeometry(size, height + .3, size);
         worldUVs(geometry, size, height + .3, size, 4.8);
         const mesh = new THREE.Mesh(geometry, spellMaterials.stoneLight);
@@ -3180,7 +3192,7 @@
           sun.shadow.radius = 3;
         }
         scene.add(sun);
-        addNightSky(scene, arena.sky);
+        skyDome = addNightSky(scene, arena.sky);
         const blue = new THREE.DirectionalLight(arena.light.fill, arena.light.fillIntensity);
         blue.position.set(26, 17, -25);
         scene.add(blue);
@@ -4636,6 +4648,20 @@
         showToast('You return to the fight');
         playSound('respawn');
       }
+      // Blink goes the way you're moving (W/A/S/D relative to where you aim), or straight ahead when standing still.
+      // With the "Aim direction" setting it always goes where you aim.
+      function blinkHeading() {
+        const forward = currentForward();
+        if (config.blinkMode === 'aim') return forward;
+        let forwardInput = 0, sideInput = 0;
+        if (held(bindings.forward, 'ArrowUp')) forwardInput += 1;
+        if (held(bindings.back, 'ArrowDown')) forwardInput -= 1;
+        if (held(bindings.left)) sideInput -= 1;
+        if (held(bindings.right)) sideInput += 1;
+        if (autoRun && !forwardInput) forwardInput = 1;
+        if (!forwardInput && !sideInput) return forward;
+        return forward.clone().multiplyScalar(forwardInput).addScaledVector(rightFromForward(forward), sideInput).normalize();
+      }
       function castSpell(spell) {
         if (gameState !== 'playing' || player.dead) return;
         const costs = spellCosts;
@@ -4643,11 +4669,11 @@
         if (cooldowns[spell] > 0) return;
         if (player.mana < costs[spell]) { showToast('Not enough mana'); playSound('fizzle'); return; }
         // Blinks need somewhere to land; check before spending mana.
-        let blinkTravel = 0;
+        let blinkTravel = 0, blinkDirection = null;
         if (spell === 'blink') {
           faceAim();
-          const ahead = currentForward();
-          blinkTravel = blinkReach(player, ahead, kit.blink.distance);
+          blinkDirection = blinkHeading();
+          blinkTravel = blinkReach(player, blinkDirection, kit.blink.distance);
           if (blinkTravel <= 2) { showToast('A wall blocks your blink'); return; }
         }
         // Signature spells need a target before spending mana.
@@ -4678,7 +4704,7 @@
         } else if (spell === 'wall') {
           // Already placed above.
         } else if (spell === 'blink') {
-          blinkWizard(player, forward, blinkTravel);
+          blinkWizard(player, blinkDirection, blinkTravel);
         } else if (spell === 'special') {
           castSignature(player, signatureAim);
         } else {
@@ -5598,6 +5624,7 @@
       function drawFrame(dt) {
         updateActionControls(dt);
         updateCamera(dt);
+        if (skyDome) skyDome.position.copy(camera.position);
         updateWallPlacement();
         updateEnemyBars();
         updateTutorial();
@@ -5889,7 +5916,7 @@
           text: `Left-click to fire <b>${escapeHtml(kit.bolt.name)}</b> at the reticle in the middle of the screen. Head hits deal extra damage. Fire one now.`,
           done: () => tutorial.counters.bolt > tutorial.base.bolt },
         { title: 'Your spells', spot: ['.action-slots', '[data-action-spell="blink"]'],
-          text: `${kbd('special')} <b>${escapeHtml(kit.special.name)}</b>: your signature spell.<br>${kbd('wall')} <b>${escapeHtml(kit.wall.name)}</b>: block a corridor.<br>${kbd('ward')} <b>${escapeHtml(kit.ward.name)}</b>: protect yourself.<br>${kbd('blink')} <b>${escapeHtml(kit.blink.name)}</b>: a quick dash.<br><br>The dark sweep over a button is its cooldown. Face an open corridor and press ${kbd('blink')} to dash.`,
+          text: `${kbd('special')} <b>${escapeHtml(kit.special.name)}</b>: your signature spell.<br>${kbd('wall')} <b>${escapeHtml(kit.wall.name)}</b>: block a corridor.<br>${kbd('ward')} <b>${escapeHtml(kit.ward.name)}</b>: protect yourself.<br>${kbd('blink')} <b>${escapeHtml(kit.blink.name)}</b>: a quick dash ${config.blinkMode === 'aim' ? 'where you aim' : 'the way you are moving'}.<br><br>The dark sweep over a button is its cooldown. Try it: ${config.blinkMode === 'aim' ? 'aim down an open corridor' : 'hold a direction toward an open corridor'} and press ${kbd('blink')}.`,
           done: () => tutorial.counters.blink > tutorial.base.blink },
         { title: 'Minimap', info: true, spot: ['.minimap-wrap'],
           text: `You are the <b>white arrow</b>. Your vault is the <b style="color:${HOME_COLOR}">cyan ◆</b>, and rival vaults are <b style="color:#ffd36b">gold ◆</b> while their treasure is still at home. Rivals only show up while you can see them.${portals.length ? ' Coloured circles are portals: matching colours are linked.' : ''}` },
@@ -6132,7 +6159,10 @@
       // Graphics quality: High (shadows, glow, plants) or Low (faster).
       const renderGraphicsModes = () => document.querySelectorAll("[data-graphics]").forEach(button => button.classList.toggle("active", button.dataset.graphics === (profile.graphics || "high")));
       document.querySelectorAll("[data-graphics]").forEach(button => button.addEventListener("click", () => { profile.graphics = button.dataset.graphics; save(); renderGraphicsModes(); }));
-      $('#controls-button').addEventListener('click', () => { listeningFor = null; renderControls(); renderCameraModes(); renderGraphicsModes(); controlsPanel.hidden = false; });
+      // Blink direction: the way you're moving (default) or where you aim.
+      const renderBlinkModes = () => document.querySelectorAll('[data-blink-mode]').forEach(button => button.classList.toggle('active', button.dataset.blinkMode === (profile.blinkMode || 'movement')));
+      document.querySelectorAll('[data-blink-mode]').forEach(button => button.addEventListener('click', () => { profile.blinkMode = button.dataset.blinkMode; save(); renderBlinkModes(); }));
+      $('#controls-button').addEventListener('click', () => { listeningFor = null; renderControls(); renderCameraModes(); renderGraphicsModes(); renderBlinkModes(); controlsPanel.hidden = false; });
       const closeControls = () => { listeningFor = null; controlsPanel.hidden = true; };
       $('#controls-close').addEventListener('click', closeControls);
       controlsPanel.addEventListener('click', event => { if (event.target === controlsPanel) closeControls(); });
@@ -6202,8 +6232,8 @@
       // Framed to fit the tallest gnome (the Stormcaller's hat and storm cloud).
       previewCamera.position.set(0, 2.65, 10.2);
       previewCamera.lookAt(0, 2.2, 0);
-      // Backdrop: a violet glow behind the gnome that fades into the panel colour at the edges, so the
-      // canvas blends into the menu card. The collection's stage has its own slightly brighter glow.
+      // Backdrop: in the menu the preview is see-through, so the gnome stands on its dais over the arena behind
+      // the menu. The collection's stage has a violet glow that fades into the panel colour at the edges.
       function stageBackdrop(center, edge) {
         const backdropCanvas = document.createElement('canvas');
         backdropCanvas.width = backdropCanvas.height = 512;
@@ -6216,8 +6246,8 @@
         texture.encoding = THREE.sRGBEncoding;
         return texture;
       }
-      const menuBackdrop = stageBackdrop('#34245e', '#171124'), collectionBackdrop = stageBackdrop('#3a2866', '#120d1e');
-      previewScene.background = menuBackdrop;
+      const collectionBackdrop = stageBackdrop('#3a2866', '#120d1e');
+      previewScene.background = null;
       previewScene.add(new THREE.HemisphereLight('#e8dcff', '#2a1d4a', .8));
       const keyLight = new THREE.DirectionalLight('#f3dca8', 1.35);
       keyLight.position.set(3, 6, 4);
@@ -6351,7 +6381,7 @@
           previewScene.background = collectionBackdrop;
           collectionRenderer.render(previewScene, previewCamera);
         } else {
-          previewScene.background = menuBackdrop;
+          previewScene.background = null;
           previewRenderer.render(previewScene, previewCamera);
         }
       }
@@ -6406,7 +6436,7 @@
           const map = ARENA_MAPS[mapId];
           const scene = new THREE.Scene();
           scene.fog = new THREE.FogExp2(map.fog[0], map.fog[1] * 1.27);
-          addNightSky(scene, map.sky);
+          const sky = addNightSky(scene, map.sky);
           scene.add(new THREE.HemisphereLight(map.light.sky, map.light.ground, .85));
           const sun = new THREE.DirectionalLight(map.light.sun, 1.3);
           sun.position.set(...map.light.sunAt);
@@ -6488,23 +6518,34 @@
           worldUVs(wallGeometry, CELL + .65, 4.8, .65, 4.8);
           wallGeometry.translate(0, 2.4, 0);
           const walls = new THREE.InstancedMesh(wallGeometry, wallMaterial, segments.length);
-          const pillarGeometry = new THREE.BoxGeometry(.8, 5.1, .8);
-          worldUVs(pillarGeometry, .8, 5.1, .8, 4.8);
+          // Pillars are a little wider than the wall caps (.95 vs .8) so no faces line up exactly; lined-up faces flicker.
+          const pillarGeometry = new THREE.BoxGeometry(.95, 5.1, .95);
+          worldUVs(pillarGeometry, .95, 5.1, .95, 4.8);
           pillarGeometry.translate(0, 2.55, 0);
           const pillars = new THREE.InstancedMesh(pillarGeometry, wallMaterial, (SIZE + 1) * (SIZE + 1));
           const capGeometry = new THREE.BoxGeometry(CELL + .8, .2, .8).translate(0, 4.8, 0);
           const caps = new THREE.InstancedMesh(capGeometry, new THREE.MeshStandardMaterial({ color: map.walls.cap, roughness: .85 }), segments.length);
           // On terraces each wall is stretched so it stands a full storey above the highest ground beside it.
           const turned = new THREE.Quaternion(), position = new THREE.Vector3(), stretch = new THREE.Vector3();
+          // Each pillar stands above the tallest wall cap that meets it. Wall boxes are kept for camera sight checks.
+          const cornerTops = new Map(), boxes = [];
+          const cornerKey = (x, z) => `${Math.round(x)},${Math.round(z)}`;
           segments.forEach(([x, z, turn], index) => {
-            const top = groundTop(x, z, turn ? .65 : CELL + .65, turn ? CELL + .65 : .65) + 4.8;
-            matrix.compose(position.set(x, 0, z), turned.setFromAxisAngle(up, turn), stretch.set(1, top / 4.8, 1));
+            const top = groundTop(x, z, turn ? .65 : CELL + .65, turn ? CELL + .65 : .65) + 4.8, scale = top / 4.8;
+            matrix.compose(position.set(x, 0, z), turned.setFromAxisAngle(up, turn), stretch.set(1, scale, 1));
             walls.setMatrixAt(index, matrix);
             caps.setMatrixAt(index, matrix);
+            const capTop = 4.9 * scale;
+            for (const end of [-1, 1]) {
+              const key = turn ? cornerKey(x, z + end * CELL / 2) : cornerKey(x + end * CELL / 2, z);
+              cornerTops.set(key, Math.max(cornerTops.get(key) || 0, capTop));
+            }
+            boxes.push({ x, z, halfX: turn ? .45 : CELL / 2 + .45, halfZ: turn ? CELL / 2 + .45 : .45, top: capTop });
           });
           let pillarIndex = 0;
           for (let row = 0; row <= SIZE; row++) for (let col = 0; col <= SIZE; col++) {
-            const x = -HALF + col * CELL, z = -HALF + row * CELL, top = groundTop(x, z, 1.4, 1.4) + 5.1;
+            const x = -HALF + col * CELL, z = -HALF + row * CELL;
+            const top = Math.max(groundTop(x, z, 1.4, 1.4) + 5.1, (cornerTops.get(cornerKey(x, z)) || 0) + .25);
             pillars.setMatrixAt(pillarIndex++, matrix.compose(position.set(x, 0, z), turned.identity(), stretch.set(1, top / 5.1, 1)));
           }
           [walls, pillars, caps].forEach(mesh => { mesh.castShadow = mesh.receiveShadow = !low; scene.add(mesh); });
@@ -6590,18 +6631,27 @@
             return { ...gate, color, group, surface, light, x: group.position.x, z: group.position.z };
           });
 
-          // A shot that shows off the arena's twist.
+          // A shot that shows off the arena's twist. Shots place the camera and return the point they look at.
           const feature = map.portals
             ? { name: 'Waygate', place: (time, shot) => {
               const gate = gates[shot.gate % gates.length], angle = Math.sin(time * .25) * .6, out = new THREE.Vector3(gate.inward[1], 0, gate.inward[0]);
               const side = new THREE.Vector3(-out.z, 0, out.x);
-              camera.position.set(gate.x + out.x * 8 + side.x * angle * 6, 4.2, gate.z + out.z * 8 + side.z * angle * 6);
-              camera.lookAt(gate.x, 2, gate.z);
+              camera.position.set(gate.x + out.x * 7 + side.x * angle * 4, 6.5, gate.z + out.z * 7 + side.z * angle * 4);
+              return new THREE.Vector3(gate.x, 1.9, gate.z);
             } }
             : map.terrain
-              ? { name: 'The high ground', place: time => { const angle = time * .07; camera.position.set(Math.cos(angle) * 21, 9, Math.sin(angle) * 21); camera.lookAt(0, 3.4, 0); } }
+              ? { name: 'The high ground', place: time => { const angle = time * .07; camera.position.set(Math.cos(angle) * 22, 13, Math.sin(angle) * 22); return new THREE.Vector3(0, 3.4, 0); } }
               : null;
-          return { map, scene, cells, passable, ground, flames, vaults, gates, feature };
+          // Does a wall block the straight line from the camera to what it's filming?
+          function wallBetween(from, to) {
+            for (let step = 1; step < 37; step++) {
+              const t = step / 40, x = from.x + (to.x - from.x) * t, y = from.y + (to.y - from.y) * t, z = from.z + (to.z - from.z) * t;
+              if (y < ground(x, z)) return true;
+              if (boxes.some(box => y < box.top && Math.abs(x - box.x) < box.halfX && Math.abs(z - box.z) < box.halfZ)) return true;
+            }
+            return false;
+          }
+          return { map, scene, sky, cells, passable, ground, flames, vaults, gates, feature, wallBetween };
         }
 
         // Picks a random reachable cell and walks there (breadth-first route through open walls).
@@ -6678,18 +6728,24 @@
         // Camera shots, cycled with a short fade between them. Each arena gets two shots: an overview first,
         // then a closer look (its twist, a gnome on the hunt, a vault or a flight over the walls).
         const SHOTS = [
-          { name: 'Overview', place: time => { const angle = time * .05; camera.position.set(Math.cos(angle) * 44, 36, Math.sin(angle) * 44); camera.lookAt(0, 0, 0); } },
+          { name: 'Overview', place: time => { const angle = time * .05; camera.position.set(Math.cos(angle) * 44, 36, Math.sin(angle) * 44); return new THREE.Vector3(0, 0, 0); } },
           { name: 'On the hunt', place: (time, shot) => {
             const wizard = wizards[shot.wizard], ahead = new THREE.Vector3(-Math.sin(wizard.body.rotation.y), 0, -Math.cos(wizard.body.rotation.y));
             const floorY = world.ground(wizard.x, wizard.z);
             const want = new THREE.Vector3(wizard.x - ahead.x * 7, floorY + 9.5, wizard.z - ahead.z * 7);
             camera.position.lerp(want, shot.fresh ? 1 : .04);
-            shot.look = (shot.look || new THREE.Vector3()).lerp(new THREE.Vector3(wizard.x + ahead.x * 4, floorY + 1.2, wizard.z + ahead.z * 4), shot.fresh ? 1 : .08);
-            camera.lookAt(shot.look);
+            shot.look = (shot.look || new THREE.Vector3()).lerp(new THREE.Vector3(wizard.x + ahead.x * 2, floorY + 1.2, wizard.z + ahead.z * 2), shot.fresh ? 1 : .08);
+            return shot.look;
           } },
-          { name: 'Treasure vault', place: (time, shot) => { const vault = world.vaults[shot.vault].group.position, angle = time * .18; camera.position.set(vault.x + Math.cos(angle) * 10, vault.y + 6.5, vault.z + Math.sin(angle) * 10); camera.lookAt(vault.x, vault.y + 1.6, vault.z); } },
-          { name: 'Above the walls', place: time => { const t = (time * .025) % 1; camera.position.set(-HALF + t * SIZE * CELL, 15, Math.sin(time * .1) * 12); camera.lookAt(camera.position.x + 14, 0, camera.position.z * .3); } }
+          { name: 'Treasure vault', place: (time, shot) => { const vault = world.vaults[shot.vault].group.position, angle = time * .18; camera.position.set(vault.x + Math.cos(angle) * 8, vault.y + 9, vault.z + Math.sin(angle) * 8); return new THREE.Vector3(vault.x, vault.y + 1.6, vault.z); } },
+          { name: 'Above the walls', place: time => { const t = (time * .025) % 1; camera.position.set(-HALF + t * SIZE * CELL, 15, Math.sin(time * .1) * 12); return new THREE.Vector3(camera.position.x + 14, 1.5, camera.position.z * .3); } }
         ];
+        // Never film a wall: if one blocks the view of what a shot is filming, rise until the view is clear.
+        function placeCamera() {
+          const target = shot.place(clock, shot);
+          for (let lift = 0; lift < 12 && world.wallBetween(camera.position, target); lift++) camera.position.y += 1.5;
+          camera.lookAt(target);
+        }
         const SHOT_LENGTH = 9;
         let mapIndex = Math.max(0, ARENA_ORDER.indexOf(profile.map)), pendingMap = null, shotsOnMap = 0;
         let shot = null, shotTime = 0;
@@ -6804,8 +6860,10 @@
             gate.surface.scale.setScalar(1 + Math.sin(clock * 2.2 + index) * .04);
             gate.light.intensity = 2 + Math.sin(clock * 3 + index) * .5;
           });
-          shot.place(clock, shot);
+          placeCamera();
           shot.fresh = false;
+          // The sky travels with the camera so its far side is never clipped off (that showed as a big circle).
+          world.sky.position.copy(camera.position);
           renderer.render(world.scene, camera);
         }
         requestAnimationFrame(frame);
@@ -7406,7 +7464,7 @@
         applyMatchHud(mode, matchType, map, tutorial);
         window.startMatch({
           net, map, tutorial,
-          mode, matchType, name: displayName(), model: profile.model, color: lookFor(profile.model).color, cosmetics: { skin: equippedSkin(profile.model), aura: profile.equipped.aura, dye: activeDye() ? activeDye().id : null }, title: equippedTitle(), sensitivity: profile.sensitivity, cameraMode: profile.cameraMode, graphics: profile.graphics || "high", keys: currentKeys(),
+          mode, matchType, name: displayName(), model: profile.model, color: lookFor(profile.model).color, cosmetics: { skin: equippedSkin(profile.model), aura: profile.equipped.aura, dye: activeDye() ? activeDye().id : null }, title: equippedTitle(), sensitivity: profile.sensitivity, cameraMode: profile.cameraMode, graphics: profile.graphics || "high", blinkMode: profile.blinkMode || 'movement', keys: currentKeys(),
           sigil: modelInfo().sigil, role: modelInfo().role, rating: profile.rp[mode], record: profile.record[mode],
           rankName: rp => rankFor(rp).name, playerRankName: rankFor(profile.rp[mode], profile.record[mode]).name,
           // Ranked only: the player's exact RP change, plus win/loss amounts for the AI stand-ins.
