@@ -488,6 +488,9 @@
     .match-end-card p { margin: 10px 0 0; color: #cac4d8; font-size: 13px; }
     .match-end-card .rp-change { margin-top: 14px; font: 18px var(--serif); }
     .match-end-card .play-button { font-size: 16px; min-height: 46px; }
+    .match-end-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+    .match-end-actions .play-button { margin-top: 0; }
+    .match-end-card .play-button.secondary { border-color: #6a5f88; background: linear-gradient(180deg, #2c2540, #1e1830); color: #d8cff0; box-shadow: none; }
     @media (max-width: 980px) {
       .menu-grid { grid-template-columns: 1fr 1fr; }
       .play-card { grid-column: 1 / -1; }
@@ -943,7 +946,10 @@
       <div class="rp-change" id="match-end-rp"></div>
       <div class="match-rewards" id="match-end-rewards"></div>
       <div id="match-end-board"></div>
-      <button class="play-button" id="match-end-button">Back to menu</button>
+      <div class="match-end-actions">
+        <button class="play-button" id="match-end-rematch">Rematch</button>
+        <button class="play-button secondary" id="match-end-button">Back to menu</button>
+      </div>
     </div>
   </div>
   <div class="shell">
@@ -2811,6 +2817,8 @@
         gameState = result;
         endWallPlacement();
         keys.clear();
+        // Give the mouse back so the result screen's buttons can be clicked straight away.
+        if (document.pointerLockElement && document.exitPointerLock) document.exitPointerLock();
         showToast(message || (winner === player ? 'Three treasures captured. Victory!' : winner ? `${winner.name} wins the raid` : result === 'draw' ? 'Time is up · Draw' : 'Time is up'), 3000);
         // Online, the host announces the result; each guest works out whether they won.
         if (isHost) {
@@ -5008,7 +5016,7 @@
           moveTo: (x, z) => { player.x = x; player.z = z; },
           vaultOf: seat => { const wizard = bySeat(seat); return { x: wizard.vault.x, z: wizard.vault.z }; },
           shootAt: seat => { const target = bySeat(seat), origin = eyeOf(player); createProjectile(origin, wizardCenter(target).sub(origin), player, kit.bolt, kit.theme, kit.bolt.damage); },
-          cast: spell => castSpell(spell), interact: () => interact(),
+          cast: spell => castSpell(spell), interact: () => interact(), end: result => endMatch(result, result === 'won' ? player : null),
           maze: () => {
             let deadEnds = 0, unreachable = 0;
             const reach = mazeDistances([layout.home[0], layout.home[1]]);
@@ -5165,7 +5173,7 @@
       const aimPrompt = document.querySelector('#aim-prompt');
       const usingActionMouse = event => actionMode && !actionFallback && event.pointerType === 'mouse';
       function requestActionLock() {
-        if (!actionMode || actionFallback || actionLocked || !canvas.requestPointerLock) return;
+        if (!actionMode || actionFallback || actionLocked || !canvas.requestPointerLock || gameState !== 'playing') return;
         try {
           const request = canvas.requestPointerLock();
           if (request && request.catch) request.catch(() => {});
@@ -5235,7 +5243,7 @@
       // While dragging with the mouse, lock and hide the cursor (like WoW) so it can't drift off the window,
       // which used to leave a button "held" and the character turning or running on its own.
       function lockPointer() {
-        if (!canvas.requestPointerLock || document.pointerLockElement === canvas) return;
+        if (!canvas.requestPointerLock || document.pointerLockElement === canvas || gameState !== 'playing') return;
         try {
           const request = canvas.requestPointerLock();
           if (request && request.catch) request.catch(() => {});
@@ -5947,9 +5955,26 @@
             // Drop the invite code from the address bar (so a reload doesn't try to rejoin), keep anything else.
             { const url = new URL(location.href); url.searchParams.delete('join'); history.replaceState(null, '', url.pathname + url.search); }
             setLobbyStatus(message.host ? 'Send the invite link to a friend.' : 'Joined! Waiting for the host to start.');
+            // Rematch: the host puts the old settings back; a friend who asked for the rematch is Ready already.
+            if (online.rematch) {
+              if (message.host) onlineSend({ t: 'settings', ...online.rematch.settings });
+              else onlineSend({ t: 'ready', ready: true });
+              online.rematch = null;
+            }
             break;
           case 'lobby': online.lobby = message; renderLobby(); break;
-          case 'error': setLobbyStatus(message.message, true); break;
+          case 'error':
+            // Rematch: the host may not have reopened the lobby yet, so keep trying for a while.
+            if (online.rematch && online.rematch.joinCode && online.rematch.tries < 30 && /No lobby found|already started/.test(message.message)) {
+              online.rematch.tries++;
+              setLobbyStatus('Waiting for the host to press Rematch…');
+              const retryCode = online.rematch.joinCode;
+              setTimeout(() => onlineSend({ t: 'join', code: retryCode, profile: lobbyProfile() }), 1000);
+              break;
+            }
+            if (online.rematch && online.rematch.joinCode) online.rematch = null;
+            setLobbyStatus(message.message, true);
+            break;
           case 'start': startOnlineMatch(message.setup); break;
           // In-match traffic goes straight to the game, using match seats (lobby seats can have gaps).
           case 'g': if (online.gameListener) online.gameListener(message.m, online.match ? online.match.toMatchSeat[message.from] : message.from); break;
@@ -6229,11 +6254,41 @@
       }
       // Each match builds a fresh maze, so returning to the menu simply reloads the page.
       $('#match-end-button').addEventListener('click', () => window.location.reload());
+      // Rematch: reload (every match starts fresh) and jump straight back in with the same settings.
+      // Private matches: the host reopens the same lobby code, and friends who press Rematch rejoin it already Ready.
+      const REMATCH_KEY = 'arcaneArena.rematch';
+      $('#match-end-rematch').addEventListener('click', () => {
+        let plan = { kind: 'solo' };
+        if (online.match && online.code) {
+          plan = { kind: online.host ? 'host' : 'guest', code: online.code, mode: online.match.setup.mode, fillAI: online.lobby ? online.lobby.settings.fillAI : true };
+          if (online.host) onlineSend({ t: 'leave' });
+        }
+        sessionStorage.setItem(REMATCH_KEY, JSON.stringify(plan));
+        setTimeout(() => window.location.reload(), plan.kind === 'host' ? 150 : 0);
+      });
+      function startRematch() {
+        let plan = null;
+        try { plan = JSON.parse(sessionStorage.getItem(REMATCH_KEY)); } catch {}
+        sessionStorage.removeItem(REMATCH_KEY);
+        if (!plan) return;
+        if (plan.kind === 'solo') { launch(); return; }
+        profile.matchType = 'friends';
+        profile.mode = plan.mode === '1v1v1' ? '1v1v1' : '1v1';
+        renderMenu();
+        if (plan.kind === 'host') {
+          online.rematch = { settings: { mode: profile.mode, fillAI: plan.fillAI !== false } };
+          openLobby().then(() => createLobby(plan.code));
+        } else {
+          online.rematch = { joinCode: plan.code, tries: 0 };
+          openLobby(plan.code);
+        }
+      }
 
       renderMenu();
       rebuildPreview();
       sizePreview();
       requestAnimationFrame(previewFrame);
+      if (!joinFromLink) setTimeout(startRematch, 0);
     })();
   </script>
 </body>
