@@ -334,25 +334,17 @@
         radial-gradient(ellipse at 85% 110%, rgba(40, 220, 255, .16), transparent 50%),
         repeating-linear-gradient(135deg, rgba(255,255,255,.012) 0 1px, transparent 1px 5px), #0e0b15; }
     .menu[hidden] { display: none; }
-    /* Twinkling stars and a slowly drifting aurora behind the menu. */
-    .menu::before, .menu::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0; }
-    .menu::before { background:
-        radial-gradient(1px 1px at 7% 12%, #fff 99%, #0000), radial-gradient(1px 1px at 21% 31%, #fffc 99%, #0000),
-        radial-gradient(1.5px 1.5px at 34% 8%, #fff 99%, #0000), radial-gradient(1px 1px at 46% 24%, #fffa 99%, #0000),
-        radial-gradient(1px 1px at 58% 6%, #fff 99%, #0000), radial-gradient(1.5px 1.5px at 69% 19%, #ffe8c0 99%, #0000),
-        radial-gradient(1px 1px at 81% 9%, #fff 99%, #0000), radial-gradient(1px 1px at 93% 27%, #fffc 99%, #0000),
-        radial-gradient(1px 1px at 12% 58%, #fff9 99%, #0000), radial-gradient(1.5px 1.5px at 27% 74%, #c8f4ff 99%, #0000),
-        radial-gradient(1px 1px at 52% 88%, #fff9 99%, #0000), radial-gradient(1px 1px at 74% 66%, #fffa 99%, #0000),
-        radial-gradient(1.5px 1.5px at 89% 81%, #fff 99%, #0000), radial-gradient(1px 1px at 4% 92%, #fff8 99%, #0000);
-      animation: menu-twinkle 5s ease-in-out infinite alternate; }
-    .menu::after { background: radial-gradient(ellipse 60% 30% at 30% 20%, #6ef0d018, #0000 70%), radial-gradient(ellipse 50% 25% at 75% 30%, #b06bff1c, #0000 70%);
-      animation: menu-aurora 24s ease-in-out infinite alternate; }
-    @keyframes menu-twinkle { from { opacity: .45; } to { opacity: 1; } }
-    @keyframes menu-aurora { from { transform: translateX(-4%) scaleY(1); } to { transform: translateX(4%) scaleY(1.2); } }
+    /* Live map preview behind the menu, dimmed (and darker in the middle) so the panels stay easy to read. */
+    #menu-backdrop { position: fixed; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; }
+    #menu-backdrop-fade { position: fixed; inset: 0; z-index: 0; background: #07050d; opacity: 1; pointer-events: none; }
+    .menu::after { content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none; background:
+        radial-gradient(ellipse 75% 70% at 50% 50%, #0b081470, #0b081430 70%, #0b081400),
+        linear-gradient(180deg, #0b081480, #0b081400 22%, #0b081400 78%, #0b0814a0); }
+    #menu-backdrop-caption { position: fixed; left: 18px; top: 14px; z-index: 1; color: #cbbcf0aa; font: 600 11px var(--sans); letter-spacing: .14em; text-transform: uppercase; text-shadow: 0 1px 4px #000; pointer-events: none; }
     .menu-inner { position: relative; z-index: 1; }
     /* Cards: a faint top highlight like polished glass. */
-    .menu .menu-card { position: relative; box-shadow: 0 18px 50px #0006, inset 0 1px 0 #ffffff12, inset 0 0 40px #8a6aff08; }
-    @media (prefers-reduced-motion: reduce) { .menu::before, .menu::after, .chest.open::before { animation: none; } }
+    .menu .menu-card { position: relative; background: linear-gradient(160deg, #1b152a9c, #130e1db0); -webkit-backdrop-filter: blur(9px) saturate(1.2); backdrop-filter: blur(9px) saturate(1.2); box-shadow: 0 18px 50px #0006, inset 0 1px 0 #ffffff12, inset 0 0 40px #8a6aff08; }
+    @media (prefers-reduced-motion: reduce) { .chest.open::before { animation: none; } }
     .menu-inner { max-width: 1180px; margin: auto; padding: 16px 30px 18px; }
     /* Compact one-row logo (crest beside the title) so the whole menu fits on screen without scrolling. */
     .menu-title { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 14px; text-align: left; }
@@ -808,6 +800,10 @@
 </head>
 <body class="in-menu">
   <div class="menu" id="menu">
+    <!-- Live map preview behind the menu (see menuBackdrop3D). -->
+    <canvas id="menu-backdrop" aria-hidden="true"></canvas>
+    <div id="menu-backdrop-fade" aria-hidden="true"></div>
+    <div id="menu-backdrop-caption" aria-hidden="true"></div>
     <div class="menu-inner">
       <header class="menu-title">
         <div class="brand-mark">A</div>
@@ -1416,6 +1412,58 @@
       addGrain(color, size, 18);
       addGrain(bump, size, 30);
       return { map: canvasTexture(colorCanvas), bump: canvasTexture(bumpCanvas, false) };
+    }
+    // Box UVs in world units: one texture copy spans `span` metres across and the full height up,
+    // so bricks are the same size on every wall and the moss stays at the bottom.
+    function worldUVs(geometry, width, height, depth, span) {
+      const uv = geometry.attributes.uv;
+      // BoxGeometry faces in order: +x, -x, +y, -y, +z, -z (4 corners each).
+      const faceSize = [[depth, height], [depth, height], [width, depth], [width, depth], [width, height], [width, height]];
+      for (let face = 0; face < 6; face++) {
+        const [u, v] = faceSize[face];
+        const top = face === 2 || face === 3;
+        for (let corner = 0; corner < 4; corner++) {
+          const index = face * 4 + corner;
+          uv.setXY(index, uv.getX(index) * u / span, top ? uv.getY(index) * v / span : uv.getY(index));
+        }
+      }
+      uv.needsUpdate = true;
+    }
+    // Night sky: a deep violet gradient dome, stars and a glowing moon.
+    function addNightSky(scene) {
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(165, 32, 16), new THREE.ShaderMaterial({
+        side: THREE.BackSide, depthWrite: false, fog: false,
+        uniforms: { top: { value: new THREE.Color('#0e0828').convertSRGBToLinear() }, middle: { value: new THREE.Color('#2c1a5e').convertSRGBToLinear() }, horizon: { value: new THREE.Color('#6a3f9e').convertSRGBToLinear() } },
+        vertexShader: 'varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+        fragmentShader: 'uniform vec3 top; uniform vec3 middle; uniform vec3 horizon; varying vec3 vDir; void main() { float h = clamp(vDir.y, 0.0, 1.0); vec3 color = mix(horizon, middle, smoothstep(0.0, 0.25, h)); color = mix(color, top, smoothstep(0.25, 0.8, h)); gl_FragColor = linearToOutputTexel(vec4(color, 1.0)); }'
+      }));
+      dome.renderOrder = -10;
+      scene.add(dome);
+      const starPositions = [];
+      for (let index = 0; index < 900; index++) {
+        const angle = Math.random() * Math.PI * 2, height = Math.pow(Math.random(), .7) * .95 + .05;
+        const flat = Math.sqrt(1 - height * height);
+        starPositions.push(Math.cos(angle) * flat * 150, height * 150, Math.sin(angle) * flat * 150);
+      }
+      const starGeometry = new THREE.BufferGeometry();
+      starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
+      scene.add(new THREE.Points(starGeometry, new THREE.PointsMaterial({ color: '#fff4dc', size: 1.6, sizeAttenuation: false, fog: false, transparent: true, opacity: .85 })));
+      const moon = new THREE.Mesh(new THREE.SphereGeometry(7, 24, 16), new THREE.MeshBasicMaterial({ color: '#fff0d2', fog: false }));
+      moon.position.set(-95, 62, 95);
+      const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowSpriteTexture(), color: '#ffd9a0', transparent: true, opacity: .55, depthWrite: false, fog: false, blending: THREE.AdditiveBlending }));
+      halo.scale.set(48, 48, 1);
+      halo.position.copy(moon.position);
+      scene.add(moon, halo);
+    }
+    // Soft round glow used for the moon's halo.
+    function glowSpriteTexture() {
+      const glowCanvas = document.createElement('canvas');
+      glowCanvas.width = glowCanvas.height = 128;
+      const context = glowCanvas.getContext('2d'), gradient = context.createRadialGradient(64, 64, 0, 64, 64, 64);
+      gradient.addColorStop(0, '#ffffffff'); gradient.addColorStop(.25, '#ffffff66'); gradient.addColorStop(1, '#ffffff00');
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, 128, 128);
+      return new THREE.CanvasTexture(glowCanvas);
     }
     // A fine woven-fabric bump texture shared by every gnome's robe, hat and trousers (made once, on first use).
     let clothBumpTexture = null;
@@ -2114,22 +2162,6 @@
       const stoneTextures = createStoneTextures();
       const floorTextures = createFloorTextures();
       const stoneTexture = stoneTextures.map;
-      // Box UVs in world units: one texture copy spans `span` metres across and the full height up,
-      // so bricks are the same size on every wall and the moss stays at the bottom.
-      function worldUVs(geometry, width, height, depth, span) {
-        const uv = geometry.attributes.uv;
-        // BoxGeometry faces in order: +x, -x, +y, -y, +z, -z (4 corners each).
-        const faceSize = [[depth, height], [depth, height], [width, depth], [width, depth], [width, height], [width, height]];
-        for (let face = 0; face < 6; face++) {
-          const [u, v] = faceSize[face];
-          const top = face === 2 || face === 3;
-          for (let corner = 0; corner < 4; corner++) {
-            const index = face * 4 + corner;
-            uv.setXY(index, uv.getX(index) * u / span, top ? uv.getY(index) * v / span : uv.getY(index));
-          }
-        }
-        uv.needsUpdate = true;
-      }
 
       const gridSize = 9;
       const cellSize = 8;
@@ -2719,42 +2751,6 @@
         scene.add(group);
         return { group, gem, ring };
       }
-      // Night sky: a deep violet gradient dome, stars and a glowing moon.
-      function buildSky() {
-        const dome = new THREE.Mesh(new THREE.SphereGeometry(165, 32, 16), new THREE.ShaderMaterial({
-          side: THREE.BackSide, depthWrite: false, fog: false,
-          uniforms: { top: { value: new THREE.Color('#0e0828').convertSRGBToLinear() }, middle: { value: new THREE.Color('#2c1a5e').convertSRGBToLinear() }, horizon: { value: new THREE.Color('#6a3f9e').convertSRGBToLinear() } },
-          vertexShader: 'varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-          fragmentShader: 'uniform vec3 top; uniform vec3 middle; uniform vec3 horizon; varying vec3 vDir; void main() { float h = clamp(vDir.y, 0.0, 1.0); vec3 color = mix(horizon, middle, smoothstep(0.0, 0.25, h)); color = mix(color, top, smoothstep(0.25, 0.8, h)); gl_FragColor = linearToOutputTexel(vec4(color, 1.0)); }'
-        }));
-        dome.renderOrder = -10;
-        scene.add(dome);
-        const starPositions = [];
-        for (let index = 0; index < 900; index++) {
-          const angle = Math.random() * Math.PI * 2, height = Math.pow(Math.random(), .7) * .95 + .05;
-          const flat = Math.sqrt(1 - height * height);
-          starPositions.push(Math.cos(angle) * flat * 150, height * 150, Math.sin(angle) * flat * 150);
-        }
-        const starGeometry = new THREE.BufferGeometry();
-        starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
-        scene.add(new THREE.Points(starGeometry, new THREE.PointsMaterial({ color: '#fff4dc', size: 1.6, sizeAttenuation: false, fog: false, transparent: true, opacity: .85 })));
-        const moon = new THREE.Mesh(new THREE.SphereGeometry(7, 24, 16), new THREE.MeshBasicMaterial({ color: '#fff0d2', fog: false }));
-        moon.position.set(-95, 62, 95);
-        const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowSpriteTexture(), color: '#ffd9a0', transparent: true, opacity: .55, depthWrite: false, fog: false, blending: THREE.AdditiveBlending }));
-        halo.scale.set(48, 48, 1);
-        halo.position.copy(moon.position);
-        scene.add(moon, halo);
-      }
-      // Soft round glow used for the moon's halo.
-      function glowSpriteTexture() {
-        const glowCanvas = document.createElement('canvas');
-        glowCanvas.width = glowCanvas.height = 128;
-        const context = glowCanvas.getContext('2d'), gradient = context.createRadialGradient(64, 64, 0, 64, 64, 64);
-        gradient.addColorStop(0, '#ffffffff'); gradient.addColorStop(.25, '#ffffff66'); gradient.addColorStop(1, '#ffffff00');
-        context.fillStyle = gradient;
-        context.fillRect(0, 0, 128, 128);
-        return new THREE.CanvasTexture(glowCanvas);
-      }
       // High graphics: grass, glowing mushrooms, rubble and hanging vines along the walls.
       // Drawn as instanced meshes (thousands of copies in a handful of draw calls).
       function decorateWalls() {
@@ -2863,7 +2859,7 @@
           sun.shadow.radius = 3;
         }
         scene.add(sun);
-        buildSky();
+        addNightSky(scene);
         const blue = new THREE.DirectionalLight('#8c7cff', .6);
         blue.position.set(26, 17, -25);
         scene.add(blue);
@@ -5864,6 +5860,331 @@
       // The preview grows with its column, so resize the 3D view whenever the canvas changes size.
       if (window.ResizeObserver) new ResizeObserver(sizePreview).observe(previewCanvas);
 
+      // ---------- Live map preview behind the menu ----------
+      // A small arena drawn behind the menu: a fresh maze with torches and glowing vaults, gnome wizards walking
+      // the corridors and trading spells, and a camera that cuts between shots. Lighter on Low graphics.
+      const menuBackdrop3D = (() => {
+        const canvas = $('#menu-backdrop'), caption = $('#menu-backdrop-caption'), fade = $('#menu-backdrop-fade');
+        if (!canvas || !window.THREE) return null;
+        const low = profile.graphics === 'low';
+        let renderer;
+        try { renderer = new THREE.WebGLRenderer({ canvas, antialias: !low, powerPreference: 'low-power' }); } catch { return null; }
+        renderer.setPixelRatio(low ? .5 : Math.min(window.devicePixelRatio || 1, 1));
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = .82;
+        renderer.shadowMap.enabled = !low;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2('#2c1c58', .014);
+        const camera = new THREE.PerspectiveCamera(52, 1, .5, 200);
+        addNightSky(scene);
+        scene.add(new THREE.HemisphereLight('#e2d4ff', '#3d2a66', .85));
+        const sun = new THREE.DirectionalLight('#ffd9a0', 1.3);
+        sun.position.set(-20, 38, 22);
+        if (!low) {
+          sun.castShadow = true;
+          sun.shadow.mapSize.set(1024, 1024);
+          Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, near: 5, far: 100 });
+          sun.shadow.bias = -.0008;
+          sun.shadow.normalBias = .04;
+        }
+        scene.add(sun);
+
+        // Maze: carved at random, then every dead end opened up (like the real maps).
+        const SIZE = 9, CELL = 8, HALF = SIZE * CELL / 2;
+        const at = index => (index - (SIZE - 1) / 2) * CELL;
+        const cells = Array.from({ length: SIZE }, () => Array.from({ length: SIZE }, () => ({ n: true, e: true, s: true, w: true, seen: false })));
+        const STEPS = [[-1, 0, 'n', 's'], [0, 1, 'e', 'w'], [1, 0, 's', 'n'], [0, -1, 'w', 'e']];
+        const inside = (row, col) => row >= 0 && col >= 0 && row < SIZE && col < SIZE;
+        const open = (row, col, [dRow, dCol, wall, back]) => { cells[row][col][wall] = false; cells[row + dRow][col + dCol][back] = false; };
+        {
+          const stack = [[4, 4]];
+          cells[4][4].seen = true;
+          while (stack.length) {
+            const [row, col] = stack[stack.length - 1];
+            const choices = STEPS.filter(([dRow, dCol]) => inside(row + dRow, col + dCol) && !cells[row + dRow][col + dCol].seen);
+            if (!choices.length) { stack.pop(); continue; }
+            const step = choices[Math.floor(Math.random() * choices.length)];
+            open(row, col, step);
+            cells[row + step[0]][col + step[1]].seen = true;
+            stack.push([row + step[0], col + step[1]]);
+          }
+          for (let row = 0; row < SIZE; row++) for (let col = 0; col < SIZE; col++) {
+            const closed = STEPS.filter(([dRow, dCol, wall]) => cells[row][col][wall] && inside(row + dRow, col + dCol));
+            if (4 - closed.length - STEPS.filter(([dRow, dCol]) => !inside(row + dRow, col + dCol)).length <= 1 && closed.length) open(row, col, closed[Math.floor(Math.random() * closed.length)]);
+          }
+        }
+        const passable = (row, col, step) => inside(row + step[0], col + step[1]) && !cells[row][col][step[2]];
+
+        // Floor, walls and pillars (instanced: one draw call each).
+        const stone = createStoneTextures(), floorTex = createFloorTextures();
+        floorTex.map.repeat.set(SIZE, SIZE); floorTex.bump.repeat.set(SIZE, SIZE);
+        const ground = new THREE.Mesh(new THREE.PlaneGeometry(SIZE * CELL, SIZE * CELL), new THREE.MeshStandardMaterial({ color: '#6c5ab8', map: floorTex.map, bumpMap: floorTex.bump, bumpScale: .04, roughness: .9 }));
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = !low;
+        scene.add(ground);
+        const segments = [];
+        for (let row = 0; row < SIZE; row++) for (let col = 0; col < SIZE; col++) {
+          const cell = cells[row][col], x = at(col), z = at(row);
+          if (cell.n) segments.push([x, z - CELL / 2, 0]);
+          if (cell.w) segments.push([x - CELL / 2, z, Math.PI / 2]);
+          if (row === SIZE - 1) segments.push([x, z + CELL / 2, 0]);
+          if (col === SIZE - 1) segments.push([x + CELL / 2, z, Math.PI / 2]);
+        }
+        const wallMaterial = new THREE.MeshStandardMaterial({ color: '#ece4ff', map: stone.map, bumpMap: stone.bump, bumpScale: .05, roughness: .9 });
+        const wallGeometry = new THREE.BoxGeometry(CELL + .65, 4.8, .65);
+        worldUVs(wallGeometry, CELL + .65, 4.8, .65, 4.8);
+        wallGeometry.translate(0, 2.4, 0);
+        const walls = new THREE.InstancedMesh(wallGeometry, wallMaterial, segments.length);
+        const pillarGeometry = new THREE.BoxGeometry(.8, 5.1, .8);
+        worldUVs(pillarGeometry, .8, 5.1, .8, 4.8);
+        pillarGeometry.translate(0, 2.55, 0);
+        const pillars = new THREE.InstancedMesh(pillarGeometry, wallMaterial, (SIZE + 1) * (SIZE + 1));
+        const capGeometry = new THREE.BoxGeometry(CELL + .8, .2, .8).translate(0, 4.8, 0);
+        const caps = new THREE.InstancedMesh(capGeometry, new THREE.MeshStandardMaterial({ color: '#544883', roughness: .85 }), segments.length);
+        const matrix = new THREE.Matrix4();
+        segments.forEach(([x, z, turn], index) => {
+          matrix.makeRotationY(turn).setPosition(x, 0, z);
+          walls.setMatrixAt(index, matrix);
+          caps.setMatrixAt(index, matrix);
+        });
+        let pillarIndex = 0;
+        for (let row = 0; row <= SIZE; row++) for (let col = 0; col <= SIZE; col++) pillars.setMatrixAt(pillarIndex++, matrix.makeTranslation(-HALF + col * CELL, 0, -HALF + row * CELL));
+        [walls, pillars, caps].forEach(mesh => { mesh.castShadow = mesh.receiveShadow = !low; scene.add(mesh); });
+
+        // Glowing mushrooms and grass at the foot of the walls.
+        {
+          const capsGeo = new THREE.SphereGeometry(.12, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+          const mushrooms = new THREE.InstancedMesh(capsGeo, new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: '#ffffff', emissiveIntensity: .7 }), 90);
+          const blades = new THREE.InstancedMesh(new THREE.ConeGeometry(.05, .45, 3).translate(0, .22, 0), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .8 }), 500);
+          const tint = new THREE.Color(), colors = ['#5ef0ff', '#ff7ad9', '#ffd36b', '#9dff8a'], greens = ['#4f9a4a', '#6cbf5a', '#3f8a6a'];
+          const near = () => {
+            const [x, z, turn] = segments[Math.floor(Math.random() * segments.length)];
+            const along = (Math.random() - .5) * (CELL - 1), out = (Math.random() < .5 ? -1 : 1) * (.45 + Math.random() * .3);
+            return turn ? [x + out, z + along] : [x + along, z + out];
+          };
+          for (let index = 0; index < 90; index++) {
+            const [x, z] = near(), size = .7 + Math.random() * .8;
+            mushrooms.setMatrixAt(index, matrix.compose(new THREE.Vector3(x, .1 * size, z), new THREE.Quaternion(), new THREE.Vector3(size, size * .8, size)));
+            mushrooms.setColorAt(index, tint.set(colors[index % colors.length]));
+          }
+          for (let index = 0; index < 500; index++) {
+            const [x, z] = near();
+            matrix.compose(new THREE.Vector3(x, 0, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.random() * .6 - .3, Math.random() * 3, Math.random() * .6 - .3)), new THREE.Vector3(1, .6 + Math.random() * .8, 1));
+            blades.setMatrixAt(index, matrix);
+            blades.setColorAt(index, tint.set(greens[index % greens.length]));
+          }
+          scene.add(mushrooms, blades);
+        }
+
+        // Torches on a handful of walls (a few real lights; the rest just glow).
+        const flames = [];
+        segments.filter(() => Math.random() < .14).slice(0, 14).forEach(([x, z, turn], index) => {
+          const side = Math.random() < .5 ? -1 : 1, fx = turn ? x + side * .5 : x + 1.6, fz = turn ? z + 1.6 : z + side * .5;
+          const flame = new THREE.Mesh(new THREE.OctahedronGeometry(.2, 0), new THREE.MeshStandardMaterial({ color: '#ffc16d', emissive: '#e77833', emissiveIntensity: 2.6 }));
+          flame.position.set(fx, 2.5, fz);
+          scene.add(flame);
+          let light = null;
+          if (index < (low ? 2 : 6)) { light = new THREE.PointLight('#ffa64d', 1.8, 12); light.position.set(fx, 2.7, fz); scene.add(light); }
+          flames.push({ flame, light, phase: Math.random() * 6 });
+        });
+
+        // Three vaults with floating treasures and beams of light.
+        const vaults = [[1, 1, '#5ef0ff'], [7, 7, '#ff9a6b'], [1, 7, '#b48cff']].map(([row, col, color]) => {
+          const group = new THREE.Group();
+          const base = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.5, .28, 24), new THREE.MeshStandardMaterial({ color: '#3f3460', roughness: .7 }));
+          base.position.y = .12;
+          base.receiveShadow = !low;
+          const ring = new THREE.Mesh(new THREE.TorusGeometry(1.7, .07, 8, 48), new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.4 }));
+          ring.rotation.x = -Math.PI / 2;
+          ring.position.y = .3;
+          const gem = new THREE.Mesh(new THREE.OctahedronGeometry(.6, 0), new THREE.MeshStandardMaterial({ color: '#ffe08a', emissive: '#ffb84a', emissiveIntensity: 1.1, metalness: .4, roughness: .25, envMap: studioEnvMap() }));
+          gem.position.y = 2;
+          const beam = new THREE.Mesh(new THREE.CylinderGeometry(.5, .9, 26, 16, 1, true), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .16, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+          beam.position.y = 13;
+          const lamp = new THREE.PointLight(color, 2, 11);
+          lamp.position.y = 2;
+          group.add(base, ring, gem, beam, lamp);
+          group.position.set(at(col), 0, at(row));
+          scene.add(group);
+          return { group, gem, beam };
+        });
+
+        // Wizards: one of each school, wearing random skins, walking from cell to cell.
+        const BOLT_COLORS = { grovewarden: '#8dff8a', stormcaller: '#a8e4ff', embersage: '#ff9a4a' };
+        const wizards = WIZARD_MODELS.map((info, index) => {
+          const skins = COSMETICS.filter(item => item.type === 'skin' && item.model === info.id);
+          const skin = skins[Math.floor(Math.random() * skins.length)];
+          const body = buildWizardModel({ model: info.id, color: DEFAULT_ROBES[info.id], crystalColor: BOLT_COLORS[info.id], ...cosmeticLook({ model: info.id, skin: skin && skin.id }) });
+          body.scale.setScalar(.85);
+          if (!low) body.traverse(part => { if (part.isMesh && !(part.material && part.material.transparent)) part.castShadow = true; });
+          scene.add(body);
+          const [row, col] = [[1, 1], [7, 7], [1, 7]][index];
+          return { model: info.id, body, row, col, x: at(col), z: at(row), path: [], stride: 0, gait: 0, flash: 0, castTimer: 2 + index * 1.5, facing: 0 };
+        });
+        // Picks a random reachable cell and walks there (breadth-first route through open walls).
+        function planRoute(wizard) {
+          const goal = [Math.floor(Math.random() * SIZE), Math.floor(Math.random() * SIZE)];
+          const from = new Map([[`${wizard.row},${wizard.col}`, null]]), queue = [[wizard.row, wizard.col]];
+          for (let index = 0; index < queue.length; index++) {
+            const [row, col] = queue[index];
+            if (row === goal[0] && col === goal[1]) break;
+            for (const step of STEPS) {
+              const key = `${row + step[0]},${col + step[1]}`;
+              if (passable(row, col, step) && !from.has(key)) { from.set(key, [row, col]); queue.push([row + step[0], col + step[1]]); }
+            }
+          }
+          const path = [];
+          for (let cell = goal; cell && !(cell[0] === wizard.row && cell[1] === wizard.col); cell = from.get(`${cell[0]},${cell[1]}`)) path.unshift(cell);
+          wizard.path = path;
+        }
+        // Spells: a glowing orb that flies down the corridor until it meets a wall or a wizard.
+        const glow = glowSpriteTexture(), bolts = [], sparks = [];
+        const cellOf = value => Math.max(0, Math.min(SIZE - 1, Math.round(value / CELL + (SIZE - 1) / 2)));
+        function spark(position, color, count = 10) {
+          for (let index = 0; index < count; index++) {
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+            sprite.position.copy(position);
+            sprite.scale.setScalar(.5);
+            scene.add(sprite);
+            sparks.push({ sprite, velocity: new THREE.Vector3(Math.random() - .5, Math.random() * .8, Math.random() - .5).multiplyScalar(5), life: .5 });
+          }
+        }
+        function castAt(wizard, target) {
+          const dx = target.x - wizard.x, dz = target.z - wizard.z, length = Math.hypot(dx, dz) || 1;
+          wizard.facing = Math.atan2(dx, dz) + Math.PI;
+          wizard.flash = 1;
+          const color = BOLT_COLORS[wizard.model];
+          const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+          sprite.scale.setScalar(1.3);
+          sprite.position.set(wizard.x + dx / length * .8, 1.5, wizard.z + dz / length * .8);
+          scene.add(sprite);
+          bolts.push({ sprite, dx: dx / length, dz: dz / length, owner: wizard, color, row: cellOf(sprite.position.z), col: cellOf(sprite.position.x), life: 3 });
+        }
+        // Can `wizard` see `other` straight down a corridor (same row or column, no walls between)?
+        function inSight(wizard, other) {
+          if (wizard.row !== other.row && wizard.col !== other.col) return false;
+          const step = STEPS.find(([dRow, dCol]) => Math.sign(other.row - wizard.row) === dRow && Math.sign(other.col - wizard.col) === dCol);
+          if (!step) return false;
+          for (let row = wizard.row, col = wizard.col; row !== other.row || col !== other.col; row += step[0], col += step[1]) if (!passable(row, col, step)) return false;
+          return true;
+        }
+
+        // Camera shots, cycled with a short fade between them.
+        const SHOTS = [
+          { name: 'Overview', place: time => { const angle = time * .05; camera.position.set(Math.cos(angle) * 44, 36, Math.sin(angle) * 44); camera.lookAt(0, 0, 0); } },
+          { name: 'On the hunt', place: (time, shot) => {
+            const wizard = wizards[shot.wizard], ahead = new THREE.Vector3(-Math.sin(wizard.body.rotation.y), 0, -Math.cos(wizard.body.rotation.y));
+            const want = new THREE.Vector3(wizard.x - ahead.x * 7, 9.5, wizard.z - ahead.z * 7);
+            camera.position.lerp(want, shot.fresh ? 1 : .04);
+            shot.look = (shot.look || new THREE.Vector3()).lerp(new THREE.Vector3(wizard.x + ahead.x * 4, 1.2, wizard.z + ahead.z * 4), shot.fresh ? 1 : .08);
+            camera.lookAt(shot.look);
+          } },
+          { name: 'Treasure vault', place: (time, shot) => { const vault = vaults[shot.vault].group.position, angle = time * .18; camera.position.set(vault.x + Math.cos(angle) * 10, 6.5, vault.z + Math.sin(angle) * 10); camera.lookAt(vault.x, 1.6, vault.z); } },
+          { name: 'Above the walls', place: time => { const t = (time * .025) % 1; camera.position.set(-HALF + t * SIZE * CELL, 15, Math.sin(time * .1) * 12); camera.lookAt(camera.position.x + 14, 0, camera.position.z * .3); } }
+        ];
+        let shot = null, shotTime = 0, shotIndex = -1;
+        function nextShot() {
+          shotIndex = (shotIndex + 1) % SHOTS.length;
+          shot = { ...SHOTS[shotIndex], wizard: Math.floor(Math.random() * wizards.length), vault: Math.floor(Math.random() * vaults.length), fresh: true };
+          shotTime = 0;
+          caption.textContent = `Map preview · The Verdant Hollow · ${shot.name}`;
+        }
+        nextShot();
+
+        function resize() {
+          renderer.setSize(window.innerWidth, window.innerHeight, false);
+          camera.aspect = window.innerWidth / Math.max(1, window.innerHeight);
+          camera.updateProjectionMatrix();
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        let last = 0, clock = 0, running = true;
+        function frame(now) {
+          if (!running) return;
+          requestAnimationFrame(frame);
+          // About 30 frames a second is plenty for a background, and keeps the menu light.
+          if (document.hidden || now - last < 33) return;
+          const dt = Math.min(.1, (now - (last || now)) / 1000);
+          last = now;
+          clock += dt;
+          shotTime += dt;
+          // Fade out near the end of each shot, cut, then fade back in.
+          const SHOT_LENGTH = 9;
+          fade.style.opacity = shotTime > SHOT_LENGTH - .6 ? Math.min(1, (shotTime - (SHOT_LENGTH - .6)) / .6) : Math.max(0, 1 - shotTime / .6);
+          if (shotTime >= SHOT_LENGTH) nextShot();
+
+          wizards.forEach((wizard, index) => {
+            // Walk the route; pause now and then to look around.
+            if (!wizard.path.length && Math.random() < dt * .8) planRoute(wizard);
+            const next = wizard.path[0];
+            let moved = 0;
+            if (next) {
+              const tx = at(next[1]), tz = at(next[0]), dx = tx - wizard.x, dz = tz - wizard.z, distance = Math.hypot(dx, dz);
+              const step = Math.min(distance, 3.4 * dt);
+              if (distance > .01) { wizard.x += dx / distance * step; wizard.z += dz / distance * step; wizard.facing = Math.atan2(dx, dz) + Math.PI; moved = step; }
+              if (distance - step < .05) { wizard.row = next[0]; wizard.col = next[1]; wizard.path.shift(); }
+            }
+            // Duel anyone in a clear line down the corridor.
+            wizard.castTimer -= dt;
+            if (wizard.castTimer <= 0) {
+              wizard.castTimer = 1.6 + Math.random() * 2.4;
+              const target = wizards.find(other => other !== wizard && inSight(wizard, other) && Math.hypot(other.x - wizard.x, other.z - wizard.z) < 30);
+              if (target) castAt(wizard, target);
+            }
+            wizard.stride += moved * 2.3;
+            wizard.gait += ((moved > 0 ? 1 : 0) - wizard.gait) * Math.min(1, dt * 8);
+            wizard.flash = Math.max(0, wizard.flash - dt * 3);
+            const body = wizard.body;
+            body.rotation.y += (((wizard.facing - body.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * Math.min(1, dt * 10);
+            body.position.set(wizard.x, Math.abs(Math.cos(wizard.stride)) * .09 * wizard.gait, wizard.z);
+            body.userData.gait(wizard.stride, wizard.gait);
+            body.userData.castPose(wizard.flash);
+            body.userData.animate(clock + index);
+          });
+          for (let index = bolts.length - 1; index >= 0; index--) {
+            const bolt = bolts[index], position = bolt.sprite.position;
+            position.x += bolt.dx * 16 * dt;
+            position.z += bolt.dz * 16 * dt;
+            bolt.life -= dt;
+            const row = cellOf(position.z), col = cellOf(position.x);
+            const step = (row !== bolt.row || col !== bolt.col) && STEPS.find(([dRow, dCol]) => dRow === row - bolt.row && dCol === col - bolt.col);
+            const blocked = step ? !passable(bolt.row, bolt.col, step) : false;
+            if (step && !blocked) { bolt.row = row; bolt.col = col; }
+            const victim = wizards.find(other => other !== bolt.owner && Math.hypot(other.x - position.x, other.z - position.z) < .8);
+            if (blocked || victim || bolt.life <= 0 || Math.abs(position.x) > HALF || Math.abs(position.z) > HALF) {
+              spark(position, bolt.color, victim ? 16 : 8);
+              scene.remove(bolt.sprite);
+              bolt.sprite.material.dispose();
+              bolts.splice(index, 1);
+            }
+          }
+          for (let index = sparks.length - 1; index >= 0; index--) {
+            const item = sparks[index];
+            item.life -= dt;
+            item.sprite.position.addScaledVector(item.velocity, dt);
+            item.sprite.material.opacity = Math.max(0, item.life * 2);
+            if (item.life <= 0) { scene.remove(item.sprite); item.sprite.material.dispose(); sparks.splice(index, 1); }
+          }
+          flames.forEach(torch => {
+            const flicker = 1 + Math.sin(clock * 11 + torch.phase) * .12 + Math.sin(clock * 23 + torch.phase) * .06;
+            torch.flame.scale.setScalar(flicker);
+            if (torch.light) torch.light.intensity = 1.6 * flicker;
+          });
+          vaults.forEach((vault, index) => {
+            vault.gem.rotation.y = clock * 1.2 + index;
+            vault.gem.position.y = 2 + Math.sin(clock * 1.6 + index) * .15;
+            vault.beam.material.opacity = .13 + Math.sin(clock * 2 + index) * .04;
+          });
+          shot.place(clock, shot);
+          shot.fresh = false;
+          renderer.render(scene, camera);
+        }
+        requestAnimationFrame(frame);
+        return { stop() { running = false; window.removeEventListener("resize", resize); renderer.dispose(); renderer.forceContextLoss(); } };
+      })();
       // ---------- Progression: XP, levels, Gnome Chests and gold ----------
       const XP_PER_LEVEL = 1000;
       const RARITY_ORDER = ['common', 'rare', 'epic', 'legendary'];
@@ -6392,6 +6713,7 @@
       }
       function launch(net = null) {
         previewRunning = false;
+        if (menuBackdrop3D) menuBackdrop3D.stop();
         document.body.classList.remove('in-menu');
         document.body.classList.add('in-match');
         $('#menu').hidden = true;
