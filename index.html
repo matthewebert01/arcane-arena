@@ -799,6 +799,42 @@
     .lobby-status { min-height: 18px; margin-top: 10px; color: #b5aacb; font-size: 12px; text-align: center; }
     .lobby-status.error { color: #ff9a8a; }
     @media (min-width: 1300px) and (min-height: 980px) { .lobby-head h2 { font-size: 26px; } .lobby-player { padding: 11px 14px; } .lobby-code { font-size: 36px; } }
+    /* Arena picker (start menu and private lobby) */
+    .map-options, .lobby-maps { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .map-choice { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 7px 9px; border: 1px solid #43395c; background: #191327; color: inherit; text-align: left; cursor: pointer; transition: border-color .15s, background .15s; }
+    .map-choice:hover { border-color: #9589b0; }
+    .map-choice.active { border-color: var(--gold); background: linear-gradient(145deg, #3b3928, #1f1830); }
+    .map-choice:disabled { opacity: .5; cursor: default; }
+    .map-choice:disabled:hover { border-color: #43395c; }
+    .map-swatch { flex: 0 0 24px; height: 24px; border-radius: 50%; border: 1px solid #ffffff40; box-shadow: inset 0 0 8px #0006; }
+    .map-choice span:last-child { min-width: 0; }
+    .map-choice strong { display: block; overflow: hidden; font: 600 12px var(--sans); letter-spacing: .02em; text-overflow: ellipsis; white-space: nowrap; }
+    .map-choice small { display: block; color: #978bb2; font-size: 10px; }
+    .lobby-maps .map-choice { padding: 6px 8px; }
+    /* Tutorial button (start menu) */
+    .tutorial-button { width: 100%; padding: 9px 10px; border: 1px solid #5ef0ff66; background: #5ef0ff12; color: #bff8ff; cursor: pointer; font: 600 12px var(--sans); letter-spacing: .04em; }
+    .tutorial-button:hover { background: #5ef0ff24; }
+    .tutorial-button.recommended { animation: tutorial-glow 2.2s ease-in-out infinite; }
+    @keyframes tutorial-glow { 50% { box-shadow: 0 0 18px #5ef0ff55; border-color: #5ef0ffcc; } }
+    .play-card .tutorial-button { margin-top: auto; }
+    .play-card .tutorial-button + .play-button { margin-top: 10px; }
+    /* Tutorial overlay in the arena: a step card on the left and a gold outline around the HUD piece being explained */
+    .tutorial-card { position: absolute; z-index: 30; left: 16px; top: 50%; transform: translateY(-50%); width: min(340px, calc(100% - 32px)); padding: 14px 16px; border: 1px solid #f0c876aa; border-radius: 8px; background: #120c22ee; box-shadow: 0 10px 40px #000a; color: #e9e2f7; font-size: 13px; line-height: 1.5; }
+    .tutorial-card[hidden], .tutorial-spot[hidden], .tutorial-foot button[hidden] { display: none; }
+    .tutorial-card.step-in { animation: tutorial-in .35s ease-out; }
+    @keyframes tutorial-in { from { opacity: 0; transform: translate(-14px, -50%); } }
+    .tutorial-step { color: var(--gold); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+    .tutorial-card h3 { margin: 4px 0 6px; color: #fff3d6; font: 20px var(--serif); }
+    .tutorial-card p { margin: 0; }
+    .tutorial-card kbd { display: inline-block; min-width: 18px; margin: 0 2px; padding: 0 5px; border: 1px solid #ffffff55; border-bottom-width: 2px; border-radius: 4px; background: #ffffff14; color: #fff; font: 600 11px var(--sans); text-align: center; }
+    .tutorial-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
+    .tutorial-foot span { color: #9f95b8; font-size: 11px; }
+    .tutorial-card.done { border-color: #8dffb0aa; }
+    .tutorial-card.done .tutorial-foot span { color: #8dffb0; font-weight: 700; }
+    .tutorial-foot button { margin-left: auto; padding: 6px 14px; border: 1px solid #c8a65a; background: linear-gradient(180deg, #5b4c26, #3b3220); color: #ffe6a6; cursor: pointer; font: 600 12px var(--sans); letter-spacing: .06em; }
+    .tutorial-spot { position: absolute; z-index: 29; border: 2px solid var(--gold); border-radius: 8px; box-shadow: 0 0 0 4px #f0c87633, 0 0 24px #f0c876aa; pointer-events: none; animation: tutorial-pulse 1.4s ease-in-out infinite; transition: left .25s, top .25s, width .25s, height .25s; }
+    @keyframes tutorial-pulse { 50% { box-shadow: 0 0 0 8px #f0c87622, 0 0 34px #f0c876; } }
+    @media (max-width: 700px) { .tutorial-card { top: auto; bottom: 120px; transform: none; padding: 10px 12px; font-size: 12px; } .tutorial-card.step-in { animation: none; } }
   </style>
 </head>
 <body class="in-menu">
@@ -853,8 +889,11 @@
             <button class="choice" data-type="ranked" disabled title="Ranked opens with online matchmaking"><strong>Ranked<span class="soon-tag">Coming soon</span></strong><small>Climb the season ladder against real players. Opens with online matchmaking.</small></button>
             <button class="choice" data-type="friends"><strong>Private match</strong><small>Play online with friends using an invite code or link.</small></button>
           </div>
+          <div class="field-label">Arena</div>
+          <div class="map-options" id="map-options"></div>
           <div class="field-label ranks-label"><span>Season 04 ranks</span><button class="info-button" id="rank-info-button" type="button">ⓘ How ranking works</button></div>
           <div class="rank-list" id="rank-list"></div>
+          <button class="tutorial-button" id="tutorial-button" type="button">🎓 Tutorial</button>
           <button class="play-button" id="play-button">Play</button>
           <div class="queue-status" id="queue-status"></div>
           <!-- Private match lobby: replaces the match options while you're creating or in a lobby. -->
@@ -879,6 +918,8 @@
                 <button class="choice" data-lobby-mode="1v1"><strong>1v1 Duel</strong></button>
                 <button class="choice" data-lobby-mode="1v1v1"><strong>1v1v1</strong></button>
               </div>
+              <div class="field-label">Arena</div>
+              <div class="lobby-maps" id="lobby-maps"></div>
               <label class="lobby-fill" id="lobby-fill-label"><input type="checkbox" id="lobby-fill"> Fill an empty seat with an AI wizard</label>
               <div class="field-label">Wizards</div>
               <div class="lobby-players" id="lobby-players"></div>
@@ -1030,6 +1071,14 @@
           <div class="damage-layer" id="damage-layer"></div>
           <div class="hit-flash" id="hit-flash"></div>
           <div class="race-tracker" id="race-tracker" aria-label="Treasure race"></div>
+          <!-- Tutorial: a step card, plus a gold outline around the HUD piece being explained. -->
+          <div class="tutorial-spot" id="tutorial-spot" hidden></div>
+          <div class="tutorial-card" id="tutorial-card" role="dialog" aria-live="polite" hidden>
+            <div class="tutorial-step" id="tutorial-step"></div>
+            <h3 id="tutorial-title"></h3>
+            <p id="tutorial-text"></p>
+            <div class="tutorial-foot"><span id="tutorial-hint"></span><button id="tutorial-next" type="button">Continue ↵</button></div>
+          </div>
           <!-- League-style HUD: main spells, two side slots (blink + steal), and health/mana bars underneath. -->
           <div class="action-bar lol-hud" role="toolbar" aria-label="Spells, health and mana">
             <div class="hud-panel">
@@ -1241,6 +1290,62 @@
         ward: { name: 'Molten Shield', icon: '✹', color: '#ffab6b', cost: 24, cooldown: 9, type: 'absorb', amount: 35, duration: 6, aura: { burn: { dps: 8, duration: .6 }, radius: 3 }, desc: 'Absorbs 35 damage and scorches enemies close to you.' }
       }
     };
+    // ---------- Arenas ----------
+    // Every arena uses the same balanced maze generator; each adds its own look and one twist:
+    //  • The Verdant Hollow: the classic jewel-stone maze.
+    //  • Frostveil Sanctum: portal alcoves in the middle of each outer edge, linked in mirrored pairs.
+    //  • Sunspire Terraces: a raised central plateau with ramps; every vault sits on the low ground.
+    window.ARENA_MAPS = {
+      verdant: {
+        id: 'verdant', name: 'The Verdant Hollow', short: 'Verdant Hollow', feature: 'Classic maze', blurb: 'Jewel-stone corridors under a violet night.',
+        background: '#2b1d55', fog: ['#3a2470', .011], exposure: 1,
+        sky: { top: '#0e0828', middle: '#2c1a5e', horizon: '#6a3f9e', stars: 900, starOpacity: .85, moon: '#fff0d2', halo: '#ffd9a0', moonSize: 7, moonAt: [-95, 62, 95] },
+        light: { sky: '#e2d4ff', ground: '#3d2a66', sun: '#ffd9a0', sunAt: [-20, 38, 22], fill: '#8c7cff', fillIntensity: .6 },
+        stone: { base: '#251b4c', colors: ['#5d4a9a', '#6b56b0', '#4f68b4', '#7a55a8', '#4f86a8', '#5a5aa6'], chip: '#2a2050', crack: '#1e1640', grime: '#120c24', moss: ['#3f8a4fcc', '#5aa860aa'], streak: '#0c081a' },
+        floor: { base: '#2a2436', moss: ['#4f9a5a99', '#6ab86a77'], crack: '#2b2636', tiles: ['#3c7c9e', '#6654b0', '#8454a2', '#388c84'], under: '#2e2560' },
+        walls: { stone: '#ece4ff', stoneLight: '#fff1dc', cap: '#544883', border: '#4d3f86' },
+        grid: ['#c9b6ff', '#8a72e0'], rune: ['#87d2bf', '#286b61'],
+        torch: { flame: '#ffc16d', glow: '#e77833', light: '#ffa64d' },
+        decor: { blades: ['#4f9a4a', '#6cbf5a', '#3f8a6a', '#8fd06a'], caps: ['#5ef0ff', '#ff7ad9', '#ffd36b', '#9dff8a'], rubble: ['#5a4c88', '#4a5a8c', '#6a5a96', '#3e3a66'], leaves: ['#3f8a4a', '#5aa85a', '#2f7a5a', '#6cbf5a'] },
+        motes: ['#ffd36b', '#ff7ad9', '#5ef0ff', '#b38bff', '#8dffb0'],
+        minimap: { background: '#1c1538', cells: ['#2b2356', '#322960'], walls: '#c2b0ff' },
+        hud: '#f1ead2'
+      },
+      frostveil: {
+        id: 'frostveil', name: 'Frostveil Sanctum', short: 'Frostveil Sanctum', feature: 'Portals', blurb: 'Icy halls linked by waygate portals. Step in, come out across the map.',
+        portals: true,
+        background: '#10223a', fog: ['#3d6288', .012], exposure: .95,
+        sky: { top: '#050d22', middle: '#1d3d6a', horizon: '#7fb8dc', stars: 1100, starOpacity: .95, moon: '#eaf6ff', halo: '#9fd0ff', moonSize: 8, moonAt: [90, 70, -95] },
+        light: { sky: '#dceeff', ground: '#2a3f5a', sun: '#e4f2ff', sunAt: [24, 40, -18], fill: '#b48cff', fillIntensity: .55 },
+        stone: { base: '#2c4058', colors: ['#a9c4dc', '#8fb0cc', '#c2d6e6', '#7d9cba', '#b5cde0', '#93b6d4'], chip: '#3a5068', crack: '#2a3a50', grime: '#0c1a2a', moss: ['#f4f9ffdd', '#dbe9f7bb'], streak: '#0a1626' },
+        floor: { base: '#24384e', moss: ['#eef7ffaa', '#cfe6ff88'], crack: '#2a3a50', tiles: ['#6f93b4', '#7fa6c4', '#5c7fa3', '#8db4cf'], under: '#2b4562' },
+        walls: { stone: '#ffffff', stoneLight: '#e8f4ff', cap: '#e4f0fa', border: '#4a6a8c' },
+        grid: ['#d8f0ff', '#8fbfe8'], rune: ['#c9a8ff', '#5a3aa8'],
+        torch: { flame: '#d6f0ff', glow: '#4fa0ff', light: '#8fc8ff' },
+        decor: { blades: ['#d6ecff', '#a8d4f5', '#eef8ff', '#8fc0e8'], caps: ['#b48cff', '#7fd8ff', '#e0f4ff', '#ff9ae0'], rubble: ['#e8f0f8', '#c8d8e8', '#a8bed4', '#dce8f4'], leaves: ['#e6f4ff', '#cfe8ff', '#b8dcf8', '#f4faff'] },
+        motes: ['#ffffff', '#dff2ff', '#bfe0ff', '#c9b6ff', '#ffffff'],
+        minimap: { background: '#14243a', cells: ['#1f3654', '#253f60'], walls: '#bfe0ff' },
+        hud: '#dff2ff'
+      },
+      sunspire: {
+        id: 'sunspire', name: 'Sunspire Terraces', short: 'Sunspire Terraces', feature: 'High ground', blurb: 'Sandstone terraces at sunset. Hold the plateau, but every vault sits low.',
+        terrain: true,
+        background: '#5a2a3a', fog: ['#b0604a', .0105], exposure: .92,
+        sky: { top: '#24113e', middle: '#9a3c5a', horizon: '#ffb066', stars: 220, starOpacity: .5, moon: '#ffd27a', halo: '#ff9a4a', moonSize: 14, moonAt: [-120, 20, 85] },
+        light: { sky: '#ffe2c4', ground: '#5a3020', sun: '#ffc48a', sunAt: [-40, 26, 30], fill: '#ff7aa0', fillIntensity: .5 },
+        stone: { base: '#4a2a1c', colors: ['#c98a5a', '#d49a66', '#b8784e', '#e0a872', '#c27f55', '#d8925e'], chip: '#5a3424', crack: '#4a2618', grime: '#2a140c', moss: ['#e8c08acc', '#f0d0a0aa'], streak: '#2a140c' },
+        floor: { base: '#4a2a1c', moss: ['#e8c08a99', '#f4d8a877'], crack: '#4a2618', tiles: ['#c4875a', '#b07048', '#d39a68', '#a8664a'], under: '#5a3020' },
+        walls: { stone: '#fff4e8', stoneLight: '#ffe8d0', cap: '#8a4a30', border: '#7a4a34' },
+        grid: ['#ffd9a0', '#e09a60'], rune: ['#ffb85a', '#a05010'],
+        torch: { flame: '#ffc16d', glow: '#e77833', light: '#ffa64d' },
+        decor: { blades: ['#c8a050', '#d8b860', '#a88a40', '#e0c070'], caps: ['#ff7a3a', '#ffd36b', '#ff5a7a', '#ffb066'], rubble: ['#a8704a', '#c08858', '#8a5a3a', '#b87a50'], leaves: ['#8a7a3a', '#a08a40', '#6a6a30', '#b09a50'] },
+        motes: ['#ffd36b', '#ffb066', '#ff8a5a', '#fff0c0', '#ffd36b'],
+        minimap: { background: '#2a160e', cells: ['#3a2216', '#44281a'], walls: '#ffd9a0' },
+        hud: '#ffe6c4'
+      }
+    };
+    window.ARENA_ORDER = ['verdant', 'frostveil', 'sunspire'];
+
     // ---------- Hand-painted textures (drawn on canvases, so no image files are needed) ----------
     const randomBetween = (min, max) => min + Math.random() * (max - min);
     // Grainy per-pixel variation so surfaces don't look flat.
@@ -1279,13 +1384,13 @@
     }
     // Maze walls: irregular jewel-toned bricks with deep mortar, chips, cracks, grime and moss at the base.
     // One copy of the texture covers the full wall height, so the moss always sits on the ground.
-    function createStoneTextures() {
+    function createStoneTextures(palette = window.ARENA_MAPS.verdant.stone) {
       const size = 512, rows = 8, rowHeight = size / rows;
       const colorCanvas = document.createElement('canvas'), bumpCanvas = document.createElement('canvas');
       colorCanvas.width = colorCanvas.height = bumpCanvas.width = bumpCanvas.height = size;
       const color = colorCanvas.getContext('2d'), bump = bumpCanvas.getContext('2d');
-      const stoneColors = ['#5d4a9a', '#6b56b0', '#4f68b4', '#7a55a8', '#4f86a8', '#5a5aa6'];
-      color.fillStyle = '#251b4c';
+      const stoneColors = palette.colors;
+      color.fillStyle = palette.base;
       color.fillRect(0, 0, size, size);
       bump.fillStyle = '#000';
       bump.fillRect(0, 0, size, size);
@@ -1321,30 +1426,30 @@
             // Chips knocked out of the edges.
             for (const [edge, along, radius] of chips) {
               const cx = edge >= 0 ? left + edge : left + w + edge, cy = top + along * h;
-              color.fillStyle = '#2a2050'; color.beginPath(); color.arc(cx, cy, radius, 0, Math.PI * 2); color.fill();
+              color.fillStyle = palette.chip; color.beginPath(); color.arc(cx, cy, radius, 0, Math.PI * 2); color.fill();
               bump.fillStyle = '#303030'; bump.beginPath(); bump.arc(cx, cy, radius, 0, Math.PI * 2); bump.fill();
             }
-            if (crackAt !== null) paintCrack(color, bump, left + crackAt * w, top + 3, top + h - 4, 6, '#1e1640');
+            if (crackAt !== null) paintCrack(color, bump, left + crackAt * w, top + 3, top + h - 4, 6, palette.crack);
           }
           x += width;
         }
       }
       // Grime rising from the floor, then moss clinging to the lowest bricks.
       const grime = color.createLinearGradient(0, size, 0, size * .62);
-      grime.addColorStop(0, '#120c24cc'); grime.addColorStop(1, '#120c2400');
+      grime.addColorStop(0, `${palette.grime}cc`); grime.addColorStop(1, `${palette.grime}00`);
       color.fillStyle = grime;
       color.fillRect(0, size * .62, size, size * .38);
       for (let index = 0; index < 900; index++) {
         const x = Math.random() * size, depth = Math.pow(Math.random(), 2.2), y = size - depth * size * .3;
         const radius = randomBetween(1.5, 5) * (1 - depth * .6);
-        color.fillStyle = Math.random() < .5 ? '#3f8a4fcc' : '#5aa860aa';
+        color.fillStyle = Math.random() < .5 ? palette.moss[0] : palette.moss[1];
         color.beginPath(); color.arc(x, y, radius, 0, Math.PI * 2); color.fill();
         bump.fillStyle = '#d8d8d8'; bump.beginPath(); bump.arc(x, y, radius, 0, Math.PI * 2); bump.fill();
       }
       // Damp streaks running down from the top.
       for (let index = 0; index < 10; index++) {
         const x = Math.random() * size, length = randomBetween(60, 220), streak = color.createLinearGradient(0, 0, 0, length);
-        streak.addColorStop(0, '#0c081a55'); streak.addColorStop(1, '#0c081a00');
+        streak.addColorStop(0, `${palette.streak}55`); streak.addColorStop(1, `${palette.streak}00`);
         color.fillStyle = streak;
         color.fillRect(x, 0, randomBetween(4, 12), length);
       }
@@ -1353,12 +1458,12 @@
       return { map: canvasTexture(colorCanvas), bump: canvasTexture(bumpCanvas, false) };
     }
     // Floor: worn flagstones with dark grout and moss in the cracks. One copy covers one maze cell.
-    function createFloorTextures() {
+    function createFloorTextures(palette = window.ARENA_MAPS.verdant.floor) {
       const size = 512;
       const colorCanvas = document.createElement('canvas'), bumpCanvas = document.createElement('canvas');
       colorCanvas.width = colorCanvas.height = bumpCanvas.width = bumpCanvas.height = size;
       const color = colorCanvas.getContext('2d'), bump = bumpCanvas.getContext('2d');
-      color.fillStyle = '#2a2436';
+      color.fillStyle = palette.base;
       color.fillRect(0, 0, size, size);
       bump.fillStyle = '#000';
       bump.fillRect(0, 0, size, size);
@@ -1398,7 +1503,7 @@
               color.fillStyle = shadeMark;
               color.beginPath(); color.ellipse(left + mx * w, top + my * h, rx, ry, angle, 0, Math.PI * 2); color.fill();
             }
-            if (crackAt !== null) paintCrack(color, bump, left + crackAt * w, top + 4, top + h - 6, 9, '#2b2636');
+            if (crackAt !== null) paintCrack(color, bump, left + crackAt * w, top + 4, top + h - 6, 9, palette.crack);
           }
           x += width;
         }
@@ -1409,7 +1514,7 @@
       for (let index = 0; index < 1600; index++) {
         const x = Math.floor(Math.random() * size), mossY = Math.floor(Math.random() * size);
         if (grout[(mossY * size + x) * 4] > 60) continue;
-        color.fillStyle = Math.random() < .5 ? '#4f9a5a99' : '#6ab86a77';
+        color.fillStyle = Math.random() < .5 ? palette.moss[0] : palette.moss[1];
         color.beginPath(); color.arc(x, mossY, randomBetween(1.5, 4), 0, Math.PI * 2); color.fill();
       }
       addGrain(color, size, 18);
@@ -1433,28 +1538,28 @@
       uv.needsUpdate = true;
     }
     // Night sky: a deep violet gradient dome, stars and a glowing moon.
-    function addNightSky(scene) {
+    function addNightSky(scene, sky = window.ARENA_MAPS.verdant.sky) {
       const dome = new THREE.Mesh(new THREE.SphereGeometry(165, 32, 16), new THREE.ShaderMaterial({
         side: THREE.BackSide, depthWrite: false, fog: false,
-        uniforms: { top: { value: new THREE.Color('#0e0828').convertSRGBToLinear() }, middle: { value: new THREE.Color('#2c1a5e').convertSRGBToLinear() }, horizon: { value: new THREE.Color('#6a3f9e').convertSRGBToLinear() } },
+        uniforms: { top: { value: new THREE.Color(sky.top).convertSRGBToLinear() }, middle: { value: new THREE.Color(sky.middle).convertSRGBToLinear() }, horizon: { value: new THREE.Color(sky.horizon).convertSRGBToLinear() } },
         vertexShader: 'varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
         fragmentShader: 'uniform vec3 top; uniform vec3 middle; uniform vec3 horizon; varying vec3 vDir; void main() { float h = clamp(vDir.y, 0.0, 1.0); vec3 color = mix(horizon, middle, smoothstep(0.0, 0.25, h)); color = mix(color, top, smoothstep(0.25, 0.8, h)); gl_FragColor = linearToOutputTexel(vec4(color, 1.0)); }'
       }));
       dome.renderOrder = -10;
       scene.add(dome);
       const starPositions = [];
-      for (let index = 0; index < 900; index++) {
+      for (let index = 0; index < sky.stars; index++) {
         const angle = Math.random() * Math.PI * 2, height = Math.pow(Math.random(), .7) * .95 + .05;
         const flat = Math.sqrt(1 - height * height);
         starPositions.push(Math.cos(angle) * flat * 150, height * 150, Math.sin(angle) * flat * 150);
       }
       const starGeometry = new THREE.BufferGeometry();
       starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
-      scene.add(new THREE.Points(starGeometry, new THREE.PointsMaterial({ color: '#fff4dc', size: 1.6, sizeAttenuation: false, fog: false, transparent: true, opacity: .85 })));
-      const moon = new THREE.Mesh(new THREE.SphereGeometry(7, 24, 16), new THREE.MeshBasicMaterial({ color: '#fff0d2', fog: false }));
-      moon.position.set(-95, 62, 95);
-      const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowSpriteTexture(), color: '#ffd9a0', transparent: true, opacity: .55, depthWrite: false, fog: false, blending: THREE.AdditiveBlending }));
-      halo.scale.set(48, 48, 1);
+      scene.add(new THREE.Points(starGeometry, new THREE.PointsMaterial({ color: '#fff4dc', size: 1.6, sizeAttenuation: false, fog: false, transparent: true, opacity: sky.starOpacity })));
+      const moon = new THREE.Mesh(new THREE.SphereGeometry(sky.moonSize, 24, 16), new THREE.MeshBasicMaterial({ color: sky.moon, fog: false }));
+      moon.position.set(...sky.moonAt);
+      const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowSpriteTexture(), color: sky.halo, transparent: true, opacity: .55, depthWrite: false, fog: false, blending: THREE.AdditiveBlending }));
+      halo.scale.setScalar(sky.moonSize * 6.9);
       halo.position.copy(moon.position);
       scene.add(moon, halo);
     }
@@ -2147,9 +2252,11 @@
       const canvas = document.querySelector('#arena');
       const minimap = document.querySelector('#minimap');
       const minimapContext = minimap.getContext('2d');
+      // The arena (map) for this match: its colours, sky and twist (portals or terrain).
+      const arena = window.ARENA_MAPS[config.map] || window.ARENA_MAPS.verdant;
       const scene = new THREE.Scene();
-      scene.background = new THREE.Color('#2b1d55');
-      scene.fog = new THREE.FogExp2('#3a2470', .011);
+      scene.background = new THREE.Color(arena.background);
+      scene.fog = new THREE.FogExp2(arena.fog[0], arena.fog[1]);
       const camera = new THREE.PerspectiveCamera(64, 1, .1, 180);
       const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
@@ -2159,11 +2266,11 @@
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.outputEncoding = THREE.sRGBEncoding;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = highGraphics ? .8 : .86;
+      renderer.toneMappingExposure = (highGraphics ? .8 : .86) * arena.exposure;
       if (!highGraphics) renderer.setPixelRatio(1);
 
-      const stoneTextures = createStoneTextures();
-      const floorTextures = createFloorTextures();
+      const stoneTextures = createStoneTextures(arena.stone);
+      const floorTextures = createFloorTextures(arena.floor);
       const stoneTexture = stoneTextures.map;
 
       const gridSize = 9;
@@ -2185,10 +2292,11 @@
       const keys = new Set();
       const raycaster = new THREE.Raycaster();
       const spellMaterials = {
-        stone: new THREE.MeshStandardMaterial({ color: '#ece4ff', map: stoneTexture, bumpMap: stoneTextures.bump, bumpScale: .05, roughness: .9 }),
-        stoneLight: new THREE.MeshStandardMaterial({ color: '#fff1dc', map: stoneTexture, bumpMap: stoneTextures.bump, bumpScale: .05, roughness: .86 }),
-        stoneCap: new THREE.MeshStandardMaterial({ color: '#544883', roughness: .85 }),
-        floor: new THREE.MeshStandardMaterial({ color: '#2e2560', roughness: .96 }),
+        stone: new THREE.MeshStandardMaterial({ color: arena.walls.stone, map: stoneTexture, bumpMap: stoneTextures.bump, bumpScale: .05, roughness: .9 }),
+        stoneLight: new THREE.MeshStandardMaterial({ color: arena.walls.stoneLight, map: stoneTexture, bumpMap: stoneTextures.bump, bumpScale: .05, roughness: .86 }),
+        stoneCap: new THREE.MeshStandardMaterial({ color: arena.walls.cap, roughness: .85 }),
+        floor: new THREE.MeshStandardMaterial({ color: arena.floor.under, roughness: .96 }),
+        rune: new THREE.MeshStandardMaterial({ color: arena.rune[0], emissive: arena.rune[1], emissiveIntensity: 1.25, roughness: .35 }),
         teal: new THREE.MeshStandardMaterial({ color: '#87d2bf', emissive: '#286b61', emissiveIntensity: 1.25, roughness: .35 }),
         red: new THREE.MeshStandardMaterial({ color: '#ed8b72', emissive: '#812d24', emissiveIntensity: 1.1, roughness: .35 }),
         gold: new THREE.MeshStandardMaterial({ color: '#f0ce7e', emissive: '#96722e', emissiveIntensity: 1.1, roughness: .34 })
@@ -2278,18 +2386,102 @@
           const [row, col] = queue[index];
           for (const [dRow, dCol, wall] of DIRECTIONS) {
             const nextRow = row + dRow, nextCol = col + dCol;
-            if (cells[row][col][wall] || !isInterior(nextRow, nextCol) || distance[nextRow][nextCol] !== Infinity) continue;
+            if (cells[row][col][wall] || !isOpenCell(nextRow, nextCol) || distance[nextRow][nextCol] !== Infinity) continue;
             distance[nextRow][nextCol] = distance[row][col] + 1;
             queue.push([nextRow, nextCol]);
+          }
+          // Stepping into a portal comes out at its partner.
+          const portal = portalAt(row, col);
+          if (portal) {
+            const [exitRow, exitCol] = portal.partner.cell;
+            if (distance[exitRow][exitCol] === Infinity) { distance[exitRow][exitCol] = distance[row][col] + 1; queue.push([exitRow, exitCol]); }
           }
         }
         return distance;
       }
       const exitCount = ([row, col]) => DIRECTIONS.filter(([, , wall]) => !cells[row][col][wall]).length;
+      // ---------- Arena twists: portals (Frostveil Sanctum) and terrain (Sunspire Terraces) ----------
+      // Portals sit in alcoves carved into the sealed outer ring, in the middle of each edge, with a doorway into
+      // the maze. The pairs follow the maze's symmetry (opposite edges in 1v1, mirrored edges in 1v1v1), so
+      // every base is exactly as far from the portals as the others and the balance checks still hold.
+      const mid = (gridSize - 1) / 2;
+      const portals = [];
+      if (arena.portals) {
+        const north = { name: 'North', cell: [0, mid], door: [1, mid] }, south = { name: 'South', cell: [lastCell, mid], door: [lastCell - 1, mid] };
+        const west = { name: 'West', cell: [mid, 0], door: [mid, 1] }, east = { name: 'East', cell: [mid, lastCell], door: [mid, lastCell - 1] };
+        const pairs = config.mode === '1v1v1' ? [[north, west], [south, east]] : [[north, south], [west, east]];
+        ['#c08cff', '#ff8ad8'].forEach((color, index) => {
+          const [first, second] = pairs[index];
+          Object.assign(first, { partner: second, color });
+          Object.assign(second, { partner: first, color });
+          portals.push(first, second);
+        });
+      }
+      const portalAt = (row, col) => portals.find(portal => portal.cell[0] === row && portal.cell[1] === col) || null;
+      const isOpenCell = (row, col) => isInterior(row, col) || !!portalAt(row, col);
+      function openPortalAlcoves() { portals.forEach(portal => openBetween(portal.cell, portal.door)); }
+      // Terrain: each cell has a level (0 = low ground). Levels rise toward the centre plateau, every vault cell is
+      // forced to the low ground, and neighbouring cells never differ by more than one level (so every slope is a
+      // walkable ramp). Slopes don't change movement speed, so walking distances, and the balance, are unchanged.
+      const LEVEL_HEIGHT = 1.7;
+      const cellLevels = cells.map(row => row.map(() => 0));
+      function shapeTerrain(bases) {
+        if (!arena.terrain) return;
+        for (let row = 0; row < gridSize; row++) for (let col = 0; col < gridSize; col++) {
+          const ring = Math.max(Math.abs(row - mid), Math.abs(col - mid));
+          cellLevels[row][col] = ring <= 1 ? 2 : ring === 2 ? 1 : 0;
+        }
+        bases.forEach(([row, col]) => { cellLevels[row][col] = 0; });
+        for (let pass = 0; pass < gridSize; pass++) {
+          for (let row = 0; row < gridSize; row++) for (let col = 0; col < gridSize; col++) {
+            for (const [dRow, dCol] of DIRECTIONS) {
+              const nextRow = row + dRow, nextCol = col + dCol;
+              if (nextRow < 0 || nextCol < 0 || nextRow > lastCell || nextCol > lastCell) continue;
+              cellLevels[row][col] = Math.min(cellLevels[row][col], cellLevels[nextRow][nextCol] + 1);
+            }
+          }
+        }
+      }
+      // Ground height anywhere in the arena: cell levels blended with a smooth ramp, flat around each cell's centre.
+      const rampBlend = t => { const k = clamp((t - .25) / .5, 0, 1); return k * k * (3 - 2 * k); };
+      const MAX_GROUND = 2 * LEVEL_HEIGHT;
+      function groundAt(x, z) {
+        if (!arena.terrain) return 0;
+        const gx = clamp(x / cellSize + mid, 0, lastCell), gz = clamp(z / cellSize + mid, 0, lastCell);
+        const col = Math.min(Math.floor(gx), lastCell - 1), row = Math.min(Math.floor(gz), lastCell - 1);
+        const sx = rampBlend(gx - col), sz = rampBlend(gz - row);
+        const top = cellLevels[row][col] + (cellLevels[row][col + 1] - cellLevels[row][col]) * sx;
+        const bottom = cellLevels[row + 1][col] + (cellLevels[row + 1][col + 1] - cellLevels[row + 1][col]) * sx;
+        return (top + (bottom - top) * sz) * LEVEL_HEIGHT;
+      }
+      // Where a ray first meets the ground (flat floor, or the terrain), or Infinity.
+      function groundHit(origin, direction, maxDistance) {
+        if (!arena.terrain) return direction.y < -1e-4 ? -origin.y / direction.y : Infinity;
+        const below = t => origin.y + direction.y * t < groundAt(origin.x + direction.x * t, origin.z + direction.z * t);
+        let previous = 0;
+        for (let t = .25; t <= maxDistance; t += .25) {
+          if (direction.y >= 0 && origin.y + direction.y * t > MAX_GROUND) break;
+          if (below(t)) {
+            let low = previous, high = t;
+            for (let step = 0; step < 6; step++) { const middle = (low + high) / 2; if (below(middle)) high = middle; else low = middle; }
+            return high;
+          }
+          previous = t;
+        }
+        return Infinity;
+      }
+      // Highest ground under a box (so walls always rise a full storey above the terrain beside them).
+      function groundTop(x, z, width, depth) {
+        if (!arena.terrain) return 0;
+        let top = 0;
+        for (const fx of [-.5, -.25, 0, .25, .5]) for (const fz of [-.5, -.25, 0, .25, .5]) top = Math.max(top, groundAt(x + fx * width, z + fz * depth));
+        return top;
+      }
       function generateBalancedLayout(mode) {
         if (mode !== '1v1v1') {
           const rotate = ([row, col]) => [lastCell - row, lastCell - col];
           carveSymmetric(rotate, (row, col) => row < lastCell / 2 || (row === lastCell / 2 && col <= lastCell / 2));
+          openPortalAlcoves();
           const bases = [[2, 2], [6, 6]];
           if (layoutRandom() < .5) bases.reverse();
           return { home: bases[0], rivals: [bases[1]], spread: [mazeDistances(bases[0])[bases[1][0]][bases[1][1]]] };
@@ -2298,9 +2490,10 @@
         let best = null;
         for (let attempt = 0; attempt < 300 && !(best && best.perfect); attempt++) {
           carveSymmetric(flip, (row, col) => col >= row);
+          openPortalAlcoves();
           for (const axis of [[6, 6], [7, 7], [5, 5]]) {
             const fromAxis = mazeDistances(axis);
-            for (const side of [[1, 5], [1, 6], [1, 7], [2, 6], [2, 7], [1, 4]]) {
+            for (const side of [[1, 5], [1, 6], [1, 7], [2, 6], [2, 7], ...(portals.length ? [] : [[1, 4]])]) {
               // The two mirrored bases are the same distance from the axis base by symmetry,
               // so only the distance between the mirrored pair needs to match.
               const toAxis = fromAxis[side[0]][side[1]];
@@ -2320,6 +2513,7 @@
         return { home: bases[0], rivals: bases.slice(1), spread: best.spread };
       }
       const layout = generateBalancedLayout(config.mode);
+      shapeTerrain([layout.home, ...layout.rivals]);
       // AI rivals: one for a 1v1 duel, two for a 1v1v1 free-for-all. Each guards its own vault.
       const RIVAL_DEFS = [
         { name: 'Cinder Vale', role: 'Ember Sage · Fire magic', model: 'embersage', color: '#bd6b60', crystal: '#ed8b72', mapColor: '#e98977', mark: '✺', row: 7, col: 7 },
@@ -2344,6 +2538,8 @@
         targetPath: [], pathRefresh: 0, respawnAt: 0, vault: { x: cellWorld(def.col), z: cellWorld(def.row), treasure: null }
       }));
       rivals.forEach(rival => { rival.x += 2.6; rival.kit = SPELL_KITS[rival.model]; });
+      // Tutorial: the only rival is a practice partner who never fights back.
+      if (config.tutorial) rivals.forEach(rival => Object.assign(rival, { name: 'Pip the Practice Gnome', role: "Practice partner · won't fight back", passive: true }));
       // Rivals show off random cosmetics (rarer items less often), so you see what's out there to unlock.
       const randomCosmetic = (type, model, chance = 1) => {
         if (Math.random() > chance) return null;
@@ -2436,6 +2632,7 @@
         toastTimer = duration;
       }
       function addWall(x, z, width, depth, height = 4.7, material = spellMaterials.stone) {
+        height += groundTop(x, z, width, depth);
         const geometry = new THREE.BoxGeometry(width, height, depth);
         worldUVs(geometry, width, height, depth, 4.8);
         const mesh = new THREE.Mesh(geometry, material);
@@ -2448,6 +2645,7 @@
       // Pillars cover the spots where wall boxes overlap, hiding flickering faces at corners and T-junctions.
       function addPillar(x, z, height = 4.8) {
         const size = .8;
+        height += groundTop(x, z, 1.4, 1.4);
         const geometry = new THREE.BoxGeometry(size, height + .3, size);
         worldUVs(geometry, size, height + .3, size, 4.8);
         const mesh = new THREE.Mesh(geometry, spellMaterials.stoneLight);
@@ -2482,19 +2680,28 @@
         ground.rotation.x = -Math.PI / 2;
         ground.position.y = -.12;
         scene.add(ground);
-        // Flagstone floor, tinted per cell in the arena's jewel colours. Each cell's stones are turned a different way.
-        const tileMaterials = ['#3c7c9e', '#6654b0', '#8454a2', '#388c84'].map(color => new THREE.MeshStandardMaterial({ color, map: floorTextures.map, bumpMap: floorTextures.bump, bumpScale: .04, roughness: .9 }));
-        const tileGeometry = new THREE.PlaneGeometry(cellSize, cellSize);
+        // Flagstone floor, tinted per cell in the arena's colours. Each cell's stones are turned a different way.
+        // On terraced arenas each tile is a bent sheet that follows the ground (ramps between levels).
+        const tileMaterials = arena.floor.tiles.map(color => new THREE.MeshStandardMaterial({ color, map: floorTextures.map, bumpMap: floorTextures.bump, bumpScale: .04, roughness: .9 }));
+        const tileSegments = arena.terrain ? 16 : 1;
         for (let row = 0; row < gridSize; row++) {
           for (let col = 0; col < gridSize; col++) {
-            const tile = new THREE.Mesh(tileGeometry, tileMaterials[(row * 3 + col * 5 + (row * col) % 3) % tileMaterials.length]);
-            tile.rotation.set(-Math.PI / 2, 0, ((row * 7 + col * 3) % 4) * Math.PI / 2);
-            tile.position.set(cellWorld(col), -.045, cellWorld(row));
+            const geometry = new THREE.PlaneGeometry(cellSize, cellSize, tileSegments, tileSegments);
+            geometry.rotateZ(((row * 7 + col * 3) % 4) * Math.PI / 2);
+            geometry.rotateX(-Math.PI / 2);
+            geometry.translate(cellWorld(col), -.045, cellWorld(row));
+            if (arena.terrain) {
+              const position = geometry.attributes.position;
+              for (let index = 0; index < position.count; index++) position.setY(index, groundAt(position.getX(index), position.getZ(index)) - .045);
+              geometry.computeVertexNormals();
+            }
+            const tile = new THREE.Mesh(geometry, tileMaterials[(row * 3 + col * 5 + (row * col) % 3) % tileMaterials.length]);
             tile.receiveShadow = highGraphics;
             scene.add(tile);
           }
         }
-        const grid = new THREE.GridHelper(worldWidth, gridSize, '#c9b6ff', '#8a72e0');
+        const grid = new THREE.GridHelper(worldWidth, gridSize, arena.grid[0], arena.grid[1]);
+        grid.visible = !arena.terrain;
         grid.position.y = -.025;
         grid.material.transparent = true;
         grid.material.opacity = .08;
@@ -2523,18 +2730,19 @@
         mazeCorners = [...corners].map(key => key.split(',').map(Number)).map(([vertexRow, vertexCol]) => ({ x: cellWorld(vertexCol) - cellSize / 2, z: cellWorld(vertexRow) - cellSize / 2 }));
       }
       function addRune(x, z) {
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(.36, .035, 6, 20), spellMaterials.teal);
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(.36, .035, 6, 20), spellMaterials.rune);
         ring.rotation.x = -Math.PI / 2;
-        ring.position.set(x, .05, z);
+        ring.position.set(x, groundAt(x, z) + .05, z);
         scene.add(ring);
       }
       function addTorch(x, z) {
+        const floorY = groundAt(x, z);
         const mount = new THREE.Mesh(new THREE.BoxGeometry(.2, .5, .2), new THREE.MeshStandardMaterial({ color: '#493b2b', roughness: .9 }));
-        mount.position.set(x, 2.05, z);
-        const flame = new THREE.Mesh(new THREE.OctahedronGeometry(.17, 0), new THREE.MeshStandardMaterial({ color: '#ffc16d', emissive: '#e77833', emissiveIntensity: 2.5, roughness: .3 }));
-        flame.position.set(x, 2.43, z);
-        const light = new THREE.PointLight('#ffa64d', 1.7, 10);
-        light.position.set(x, 2.5, z);
+        mount.position.set(x, floorY + 2.05, z);
+        const flame = new THREE.Mesh(new THREE.OctahedronGeometry(.17, 0), new THREE.MeshStandardMaterial({ color: arena.torch.flame, emissive: arena.torch.glow, emissiveIntensity: 2.5, roughness: .3 }));
+        flame.position.set(x, floorY + 2.43, z);
+        const light = new THREE.PointLight(arena.torch.light, 1.7, 10);
+        light.position.set(x, floorY + 2.5, z);
         scene.add(mount, flame, light);
         torches.push({ flame, light, phase: Math.random() * Math.PI * 2 });
       }
@@ -2630,7 +2838,7 @@
         for (const owner of allWizards()) {
           if (!vaultMarkers.has(owner)) vaultMarkers.set(owner, makeMarker());
           const marker = vaultMarkers.get(owner), mine = owner === player;
-          marker.sprite.position.set(owner.vault.x, 5.6, owner.vault.z);
+          marker.sprite.position.set(owner.vault.x, groundAt(owner.vault.x, owner.vault.z) + 5.6, owner.vault.z);
           const thief = carrierOf(owner);
           let look;
           if (mine) {
@@ -2653,7 +2861,7 @@
           const marker = carrierMarkers.get(wizard);
           marker.sprite.visible = !!wizard.carrying && !isDown(wizard);
           if (!marker.sprite.visible) continue;
-          marker.sprite.position.set(wizard.x, 4.4, wizard.z);
+          marker.sprite.position.set(wizard.x, (wizard.y || 0) + 4.4, wizard.z);
           const stoleMine = wizard.carrying === player;
           drawMarker(marker, stoleMine
             ? { title: 'THIEF', sub: `has your treasure · ${metres(wizard)}`, color: '#ff6b5a', alert: true }
@@ -2750,7 +2958,7 @@
         group.add(base, ring, plinth, etching, gem, lamp);
         group.userData.vault = true;
         base.receiveShadow = highGraphics;
-        group.position.set(x, 0, z);
+        group.position.set(x, groundAt(x, z), z);
         scene.add(group);
         return { group, gem, ring };
       }
@@ -2778,14 +2986,14 @@
         const instanced = (geometry, material, count) => { const mesh = new THREE.InstancedMesh(geometry, material, count); mesh.receiveShadow = true; scene.add(mesh); return mesh; };
         // Grass blades in tufts along the base of every wall.
         const blades = instanced(new THREE.ConeGeometry(.045, .42, 3).translate(0, .21, 0), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .8 }), spots.length * 18);
-        const bladeColors = ['#4f9a4a', '#6cbf5a', '#3f8a6a', '#8fd06a'];
+        const bladeColors = arena.decor.blades;
         let blade = 0;
         for (const spot of spots) {
           for (let tuft = 0; tuft < 3; tuft++) {
             const along = randomBetween(-spot.length / 2 + .6, spot.length / 2 - .6), out = randomBetween(.08, .3);
             for (let piece = 0; piece < 6; piece++) {
               const [x, z] = point(spot, along + randomBetween(-.18, .18), out + randomBetween(-.06, .1));
-              place(blades, blade, x, 0, z, randomBetween(-.45, .45), Math.random() * Math.PI, randomBetween(-.45, .45), 1, randomBetween(.6, 1.4), 1);
+              place(blades, blade, x, groundAt(x, z), z, randomBetween(-.45, .45), Math.random() * Math.PI, randomBetween(-.45, .45), 1, randomBetween(.6, 1.4), 1);
               blades.setColorAt(blade++, tint.set(bladeColors[Math.floor(Math.random() * bladeColors.length)]));
             }
           }
@@ -2795,7 +3003,7 @@
         const mushroomSpots = spots.filter(() => Math.random() < .33);
         const stems = instanced(new THREE.CylinderGeometry(.028, .04, 1, 6).translate(0, .5, 0), new THREE.MeshStandardMaterial({ color: '#efe3cf', roughness: .7 }), mushroomSpots.length * 4);
         const caps = instanced(new THREE.SphereGeometry(.1, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: '#ffffff', emissiveIntensity: .55, roughness: .4 }), mushroomSpots.length * 4);
-        const capColors = ['#5ef0ff', '#ff7ad9', '#ffd36b', '#9dff8a'];
+        const capColors = arena.decor.caps;
         let mushroom = 0;
         for (const spot of mushroomSpots) {
           const along = randomBetween(-spot.length / 2 + .8, spot.length / 2 - .8), color = capColors[Math.floor(Math.random() * capColors.length)];
@@ -2803,8 +3011,9 @@
           for (let piece = 0; piece < count; piece++) {
             const [x, z] = point(spot, along + randomBetween(-.25, .25), randomBetween(.1, .32));
             const size = randomBetween(.7, 1.5), stemHeight = .12 * size + randomBetween(0, .08), lean = randomBetween(-.2, .2);
-            place(stems, mushroom, x, 0, z, lean, 0, lean, size, stemHeight, size);
-            place(caps, mushroom, x + Math.sin(lean) * stemHeight, stemHeight - .01, z, lean, 0, lean, size * 1.1, size * .8, size * 1.1);
+            const floorY = groundAt(x, z);
+            place(stems, mushroom, x, floorY, z, lean, 0, lean, size, stemHeight, size);
+            place(caps, mushroom, x + Math.sin(lean) * stemHeight, floorY + stemHeight - .01, z, lean, 0, lean, size * 1.1, size * .8, size * 1.1);
             caps.setColorAt(mushroom, tint.set(color).offsetHSL(0, 0, randomBetween(-.08, .05)));
             mushroom++;
           }
@@ -2812,14 +3021,14 @@
         stems.count = caps.count = mushroom;
         // Rubble and fallen stones.
         const rubble = instanced(new THREE.DodecahedronGeometry(.13, 0), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .95, flatShading: true }), spots.length * 3);
-        const rubbleColors = ['#5a4c88', '#4a5a8c', '#6a5a96', '#3e3a66'];
+        const rubbleColors = arena.decor.rubble;
         let stone = 0;
         for (const spot of spots) {
           for (let piece = 0; piece < 3; piece++) {
             if (Math.random() < .35) continue;
             const [x, z] = point(spot, randomBetween(-spot.length / 2 + .4, spot.length / 2 - .4), randomBetween(.12, .45));
             const size = randomBetween(.5, 1.6);
-            place(rubble, stone, x, .04 * size, z, Math.random() * 3, Math.random() * 3, Math.random() * 3, size, size * randomBetween(.5, .9), size);
+            place(rubble, stone, x, groundAt(x, z) + .04 * size, z, Math.random() * 3, Math.random() * 3, Math.random() * 3, size, size * randomBetween(.5, .9), size);
             rubble.setColorAt(stone++, tint.set(rubbleColors[Math.floor(Math.random() * rubbleColors.length)]));
           }
         }
@@ -2828,7 +3037,7 @@
         // Ivy hanging down from the tops of some walls.
         const vineSpots = spots.filter(() => Math.random() < .3);
         const leaves = instanced(new THREE.PlaneGeometry(.2, .15), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .7, side: THREE.DoubleSide }), vineSpots.length * 3 * 26);
-        const leafColors = ['#3f8a4a', '#5aa85a', '#2f7a5a', '#6cbf5a'];
+        const leafColors = arena.decor.leaves;
         let leaf = 0;
         for (const spot of vineSpots) {
           for (let strand = 0; strand < 3; strand++) {
@@ -2847,10 +3056,119 @@
         }
         leaves.count = leaf;
       }
+      // ---------- Portals (Frostveil Sanctum) ----------
+      // Each portal is a standing stone ring with a swirling gate, facing its doorway. Walk into the gate and you
+      // step out of its partner on the far side of the map, facing out into the maze.
+      function swirlTexture() {
+        const size = 256, swirlCanvas = document.createElement('canvas');
+        swirlCanvas.width = swirlCanvas.height = size;
+        const context = swirlCanvas.getContext('2d');
+        const glow = context.createRadialGradient(128, 128, 0, 128, 128, 128);
+        glow.addColorStop(0, '#ffffffff'); glow.addColorStop(.35, '#ffffff88'); glow.addColorStop(1, '#ffffff00');
+        context.fillStyle = glow;
+        context.fillRect(0, 0, size, size);
+        context.strokeStyle = '#ffffffcc';
+        context.lineCap = 'round';
+        for (let arm = 0; arm < 4; arm++) {
+          context.lineWidth = 7 - arm;
+          context.beginPath();
+          for (let step = 0; step <= 60; step++) {
+            const t = step / 60, angle = arm * Math.PI / 2 + t * Math.PI * 2.4, radius = 10 + t * 110;
+            const x = 128 + Math.cos(angle) * radius, y = 128 + Math.sin(angle) * radius;
+            if (step) context.lineTo(x, y); else context.moveTo(x, y);
+          }
+          context.stroke();
+        }
+        return new THREE.CanvasTexture(swirlCanvas);
+      }
+      function buildPortals() {
+        if (!portals.length) return;
+        const swirl = swirlTexture();
+        for (const portal of portals) {
+          const x = cellWorld(portal.cell[1]), z = cellWorld(portal.cell[0]);
+          const dx = portal.door[1] - portal.cell[1], dz = portal.door[0] - portal.cell[0];
+          const group = new THREE.Group();
+          group.position.set(x, groundAt(x, z), z);
+          group.rotation.y = Math.atan2(dx, dz);
+          const glowMaterial = new THREE.MeshStandardMaterial({ color: portal.color, emissive: portal.color, emissiveIntensity: 1.6, roughness: .3 });
+          // A low dais with a glowing rim.
+          const dais = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.4, .24, 32), spellMaterials.stoneLight);
+          dais.position.y = .1;
+          const rim = new THREE.Mesh(new THREE.TorusGeometry(2.05, .06, 8, 64), glowMaterial);
+          rim.rotation.x = -Math.PI / 2;
+          rim.position.y = .24;
+          // The gate: a stone ring on two feet, a glowing inner ring and the swirling surface.
+          const frame = new THREE.Mesh(new THREE.TorusGeometry(1.6, .22, 12, 48), spellMaterials.stone);
+          frame.position.y = 2.05;
+          const inner = new THREE.Mesh(new THREE.TorusGeometry(1.42, .06, 8, 48), glowMaterial);
+          inner.position.y = 2.05;
+          const surface = new THREE.Mesh(new THREE.CircleGeometry(1.42, 48), new THREE.MeshBasicMaterial({ color: portal.color, map: swirl, transparent: true, opacity: .9, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
+          surface.position.y = 2.05;
+          for (const side of [-1, 1]) {
+            const foot = new THREE.Mesh(new THREE.BoxGeometry(.5, .6, .5), spellMaterials.stone);
+            foot.position.set(side * 1.05, .5, 0);
+            group.add(foot);
+          }
+          const light = new THREE.PointLight(portal.color, 2.4, 11);
+          light.position.y = 2.1;
+          group.add(dais, rim, frame, inner, surface, light);
+          if (highGraphics) group.traverse(part => { if (part.isMesh && part !== surface) part.castShadow = part.receiveShadow = true; });
+          scene.add(group);
+          portal.visual = { surface, light, x, z, y: group.position.y };
+        }
+      }
+      // Where someone stepping out of a portal appears: in front of the gate, facing out through the doorway.
+      function portalExit(portal) {
+        const dx = portal.door[1] - portal.cell[1], dz = portal.door[0] - portal.cell[0];
+        return { x: cellWorld(portal.cell[1]) + dx * 2.7, z: cellWorld(portal.cell[0]) + dz * 2.7, yaw: Math.atan2(dx, -dz) };
+      }
+      function updatePortals(dt) {
+        if (!portals.length) return;
+        for (const portal of portals) {
+          const { surface, light, x, z, y } = portal.visual;
+          surface.rotation.z -= dt * 1.8;
+          light.intensity = 2.2 + Math.sin(elapsed * 3 + portal.cell[0]) * .5;
+          if (Math.random() < dt * 14) {
+            const angle = Math.random() * Math.PI * 2;
+            spawnParticle(new THREE.Vector3(x + Math.cos(angle) * 1.8, y + .3, z + Math.sin(angle) * 1.8), portal.color, { size: .1, life: .9, velocity: new THREE.Vector3(-Math.cos(angle) * .8, 1.6, -Math.sin(angle) * .8) });
+          }
+        }
+        if (gameState !== 'playing') return;
+        // Anyone this client moves (you, plus AI wizards offline or on the host) travels through a gate they walk into.
+        for (const wizard of allWizards()) {
+          if (isDown(wizard) || (wizard !== player && wizard.netDriven) || elapsed < (wizard.portalReadyAt || 0)) continue;
+          const portal = portals.find(gate => Math.hypot(wizard.x - gate.visual.x, wizard.z - gate.visual.z) < 1.3);
+          if (portal) travelPortal(wizard, portal);
+        }
+      }
+      function travelPortal(wizard, portal) {
+        const exit = portalExit(portal.partner);
+        const from = wizardCenter(wizard);
+        wizard.x = exit.x;
+        wizard.z = exit.z;
+        wizard.y = groundAt(exit.x, exit.z);
+        wizard.portalReadyAt = elapsed + .8;
+        const to = wizardCenter(wizard);
+        burst(from, portal.color, 26, { speed: 5, size: .16, life: .6 });
+        burst(to, portal.color, 30, { speed: 5, size: .18, life: .7, up: .6 });
+        playSound('blink-frost', wizard);
+        if (wizard === player) {
+          player.yaw = exit.yaw;
+          player.vy = 0;
+          player.grounded = true;
+          cam.yawOffset = 0;
+          cam.yaw = null;
+          showToast(`Through the ${portal.name} gate · out at ${portal.partner.name}`);
+        } else {
+          // Re-plan from the far side.
+          wizard.targetPath = [];
+          wizard.pathRefresh = 0;
+        }
+      }
       function buildScene() {
-        scene.add(new THREE.HemisphereLight('#e2d4ff', '#3d2a66', highGraphics ? .85 : 1.0));
-        const sun = new THREE.DirectionalLight('#ffd9a0', highGraphics ? 1.35 : 1.15);
-        sun.position.set(-20, 38, 22);
+        scene.add(new THREE.HemisphereLight(arena.light.sky, arena.light.ground, highGraphics ? .85 : 1.0));
+        const sun = new THREE.DirectionalLight(arena.light.sun, highGraphics ? 1.35 : 1.15);
+        sun.position.set(...arena.light.sunAt);
         if (highGraphics) {
           // Soft shadows from the walls and wizards across the whole maze.
           sun.castShadow = true;
@@ -2862,18 +3180,19 @@
           sun.shadow.radius = 3;
         }
         scene.add(sun);
-        addNightSky(scene);
-        const blue = new THREE.DirectionalLight('#8c7cff', .6);
+        addNightSky(scene, arena.sky);
+        const blue = new THREE.DirectionalLight(arena.light.fill, arena.light.fillIntensity);
         blue.position.set(26, 17, -25);
         scene.add(blue);
         buildMaze();
-        const borderMaterial = new THREE.MeshStandardMaterial({ color: '#4d3f86', roughness: .9 });
+        const borderMaterial = new THREE.MeshStandardMaterial({ color: arena.walls.border, roughness: .9 });
         for (const [x, z, w, d] of [[0, -worldEdge, worldWidth, 1], [0, worldEdge, worldWidth, 1], [-worldEdge, 0, 1, worldWidth], [worldEdge, 0, 1, worldWidth]]) {
           if (!wallColliders.some(wall => Math.abs(wall.x - x) < .1 && Math.abs(wall.z - z) < .1)) addWall(x, z, w, d, 5.2, borderMaterial);
         }
         wallColliders.forEach(dressWall);
         if (highGraphics) decorateWalls();
         mazeCorners.forEach(corner => addPillar(corner.x, corner.z));
+        buildPortals();
         home.treasure = makeVault(home.x, home.z, true, HOME_COLOR).gem;
         rivals.forEach(rival => { rival.vault.treasure = makeVault(rival.vault.x, rival.vault.z, false, rival.mapColor).gem; });
         player.body = buildWizardModel({ model: config.model, color: config.color, crystalColor: '#9ff0d0', ...cosmeticLook({ model: config.model, ...(config.cosmetics || {}) }) });
@@ -2899,16 +3218,19 @@
         }
         const dots = new THREE.Group();
         // Floating sparkles in a mix of bright colours.
-        const dotMaterials = ['#ffd36b', '#ff7ad9', '#5ef0ff', '#b38bff', '#8dffb0'].map(color => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .7 }));
+        const dotMaterials = arena.motes.map(color => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .7 }));
         for (let i = 0; i < 80; i++) {
           const mote = new THREE.Mesh(new THREE.SphereGeometry(.035 + Math.random() * .035, 5, 5), dotMaterials[i % dotMaterials.length]);
           mote.position.set((Math.random() - .5) * worldWidth, .4 + Math.random() * 3.6, (Math.random() - .5) * worldWidth);
+          mote.position.y += groundAt(mote.position.x, mote.position.z);
           dots.add(mote);
         }
         scene.add(dots);
       }
       player.body = null;
       buildScene();
+      player.y = groundAt(player.x, player.z);
+      rivals.forEach(rival => { rival.y = groundAt(rival.x, rival.z); });
       spawnPoint = { x: player.x, z: player.z, yaw: player.yaw };
       // HUD keys and hints follow the player's bindings. 
       document.querySelectorAll('[data-key-for]').forEach(label => { label.textContent = keyName(label.dataset.keyFor); });
@@ -3100,10 +3422,14 @@
         for (let index = 0; index < queue.length; index++) {
           const [row, col] = queue[index];
           if (row === end[0] && col === end[1]) break;
-          for (const [nextRow, nextCol] of [[row - 1, col], [row + 1, col], [row, col - 1], [row, col + 1]]) {
+          const portal = portalAt(row, col);
+          const neighbours = [[row - 1, col], [row + 1, col], [row, col - 1], [row, col + 1]];
+          if (portal) neighbours.push(portal.partner.cell);
+          for (const [nextRow, nextCol] of neighbours) {
             const key = `${nextRow},${nextCol}`;
-            if (!walkable(row, col, nextRow, nextCol) || seen.has(key)) continue;
-            const lane = laneBetween(row, col, nextRow, nextCol, walls);
+            const jump = !!portal && nextRow === portal.partner.cell[0] && nextCol === portal.partner.cell[1];
+            if (!(jump || walkable(row, col, nextRow, nextCol)) || seen.has(key)) continue;
+            const lane = jump ? 0 : laneBetween(row, col, nextRow, nextCol, walls);
             if (lane === null) continue;
             seen.set(key, { from: `${row},${col}`, lane });
             queue.push([nextRow, nextCol]);
@@ -3445,14 +3771,12 @@
         let distance = 90, kind = 'none';
         const wallHit = rayWallDistance(origin, direction, distance);
         if (wallHit < distance) { distance = wallHit; kind = 'wall'; }
-        if (direction.y < -1e-4) {
-          const floorHit = -origin.y / direction.y;
-          if (floorHit < distance) { distance = floorHit; kind = 'floor'; }
-        }
+        const floorHit = groundHit(origin, direction, distance);
+        if (floorHit < distance) { distance = floorHit; kind = 'floor'; }
         let wizardHit = null;
         for (const rival of rivals) {
           if (rival.hp <= 0) continue;
-          const center = new THREE.Vector3(rival.x, 1.1, rival.z);
+          const center = new THREE.Vector3(rival.x, (rival.y || 0) + 1.1, rival.z);
           const toCenter = center.clone().sub(origin);
           const along = toCenter.dot(direction);
           const missSq = toCenter.lengthSq() - along * along;
@@ -3526,8 +3850,8 @@
           if (!blocked) openCount++;
           wallPlacement.segments.push({ x, z, blocked });
           const plate = wallPlacement.plates[index], ghost = wallPlacement.ghosts[index];
-          plate.position.set(x, .04, z);
-          ghost.position.set(x, WALL_HEIGHT / 2, z);
+          plate.position.set(x, groundAt(x, z) + .04, z);
+          ghost.position.set(x, groundAt(x, z) + WALL_HEIGHT / 2, z);
           plate.rotation.y = ghost.rotation.y = -angle;
           plate.visible = ghost.visible = !blocked;
         }
@@ -3631,14 +3955,15 @@
           if (segment.blocked) continue;
           const { group, flames } = buildWallSegment(wizardKit.theme);
           group.rotation.y = -angle;
-          group.position.set(segment.x, 0, segment.z);
+          const baseY = groundAt(segment.x, segment.z);
+          group.position.set(segment.x, baseY, segment.z);
           group.scale.y = .02;
           scene.add(group);
-          const collider = { x: segment.x, z: segment.z, halfX: WALL_SEGMENT_SIZE / 2, halfZ: WALL_SEGMENT_SIZE / 2, height: WALL_HEIGHT, mesh: group, expires: elapsed + spell.duration, born: elapsed, shared: true, anchored: true, flames, aura: spell.aura, owner, theme: wizardKit.theme };
+          const collider = { x: segment.x, z: segment.z, halfX: WALL_SEGMENT_SIZE / 2, halfZ: WALL_SEGMENT_SIZE / 2, height: baseY + WALL_HEIGHT, baseY, mesh: group, expires: elapsed + spell.duration, born: elapsed, shared: true, anchored: true, flames, aura: spell.aura, owner, theme: wizardKit.theme };
           wallColliders.push(collider);
           activeWalls.push(collider);
           // Ground bursts as the wall erupts.
-          const base = new THREE.Vector3(segment.x, .2, segment.z);
+          const base = new THREE.Vector3(segment.x, baseY + .2, segment.z);
           burst(base, '#b8ad92', 6, { speed: 3, size: .16, life: .6, gravity: 5, up: .8 });
           burst(base, colors.glow, 6, { speed: 4, size: .12, life: .5, up: 1.2 });
         }
@@ -3683,7 +4008,7 @@
           burst(to, colors.glow, 18, { speed: 5, size: .14, life: .45 });
         } else if (wizardKit.theme === 'fire') {
           // A trail of fire, then an eruption that scorches anyone nearby.
-          streak(new THREE.Vector3(from.x, .3, from.z), new THREE.Vector3(to.x, .3, to.z), colors.glow, 22, .3, .2);
+          streak(new THREE.Vector3(from.x, from.y - .8, from.z), new THREE.Vector3(to.x, to.y - .8, to.z), colors.glow, 22, .3, .2);
           burst(to, colors.glow, 30, { speed: 7, size: .22, life: .6, up: .6 });
           burst(to, colors.core, 12, { speed: 3, size: .3, life: .4 });
           const scale = isHuman(wizard) ? 1 : .6;
@@ -4049,7 +4374,7 @@
         const fill = new THREE.Mesh(new THREE.CircleGeometry(radius * .9, 48), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .15, depthWrite: false, side: THREE.DoubleSide }));
         group.add(edge, fill);
         group.rotation.x = -Math.PI / 2;
-        group.position.set(point.x, .06, point.z);
+        group.position.set(point.x, groundAt(point.x, point.z) + .08, point.z);
         scene.add(group);
         return group;
       }
@@ -4120,7 +4445,7 @@
           warning.children[0].material.opacity = .35 + .35 * Math.abs(Math.sin(elapsed * 12));
           warning.children[1].material.opacity = .1 + progress * .2;
           if (meteor) {
-            meteor.position.set(point.x + (1 - progress) * 5, .6 + (1 - progress) * 18, point.z + (1 - progress) * 2);
+            meteor.position.set(point.x + (1 - progress) * 5, groundAt(point.x, point.z) + .6 + (1 - progress) * 18, point.z + (1 - progress) * 2);
             meteor.rotation.x += .2;
             spawnParticle(meteor.position, Math.random() < .5 ? '#ff7a2a' : '#ffd36b', { size: .35, life: .5, velocity: new THREE.Vector3(0, 1, 0) });
           } else if (Math.random() < .5) {
@@ -4135,7 +4460,7 @@
             applyDamage(enemy, spell.damage * scale, caster);
             applyEffects(enemy, spell, caster, scale);
           });
-          const center = new THREE.Vector3(point.x, .4, point.z);
+          const center = new THREE.Vector3(point.x, groundAt(point.x, point.z) + .4, point.z);
           playSound(`impact-${theme}`, point);
           if (distanceXZ(player, point) < 14) cam.shake = Math.max(cam.shake, fire ? .45 : .2);
           if (fire) {
@@ -4163,7 +4488,7 @@
           root.rotation.set((Math.random() - .5) * .7, 0, (Math.random() - .5) * .7);
           group.add(root);
         }
-        group.position.set(point.x, 0, point.z);
+        group.position.set(point.x, groundAt(point.x, point.z), point.z);
         group.scale.y = .01;
         scene.add(group);
         let age = 0;
@@ -4239,7 +4564,7 @@
           return false;
         }
         celebrateCapture(carrier);
-        if (carrier.captures >= CAPTURES_TO_WIN) endMatch(carrier === player ? 'won' : 'lost', carrier);
+        if (carrier.captures >= CAPTURES_TO_WIN && !config.tutorial) endMatch(carrier === player ? 'won' : 'lost', carrier);
       }
       // The capture itself: the treasure goes home, the score goes up, with sound, sparkle and a message.
       function celebrateCapture(carrier) {
@@ -4305,7 +4630,7 @@
         if (isHost) net.send({ t: 'ko', v: mySeat, k: seatOf(player.lastHitBy) });
       }
       function respawnPlayer() {
-        Object.assign(player, { dead: false, hp: 100, mana: 100, x: spawnPoint.x, z: spawnPoint.z, yaw: spawnPoint.yaw, y: 0, grounded: true, wardUntil: elapsed + 2, slowUntil: 0, burnUntil: 0, absorb: 0 });
+        Object.assign(player, { dead: false, hp: 100, mana: 100, x: spawnPoint.x, z: spawnPoint.z, yaw: spawnPoint.yaw, y: groundAt(spawnPoint.x, spawnPoint.z), grounded: true, wardUntil: elapsed + 2, slowUntil: 0, burnUntil: 0, absorb: 0 });
         cam.yawOffset = 0;
         shadowBlob.visible = true;
         showToast('You return to the fight');
@@ -4360,6 +4685,7 @@
           startShield();
         }
         cooldowns[spell] = cooldownDurations[spell];
+        if (tutorial) tutorial.counters[spell]++;
         updateHud();
       }
       // Left click (and the cast key) always fires the basic attack, or places a wall while previewing one.
@@ -4414,14 +4740,16 @@
           player.vz += (moveZ - player.vz) * (1 - Math.exp(-dt * 1.2));
           player.vy -= 24 * dt;
           player.y += player.vy * dt;
-          if (player.y <= 0) {
-            player.y = 0; player.vy = 0; player.grounded = true;
+          const floorY = groundAt(player.x, player.z);
+          if (player.y <= floorY) {
+            player.y = floorY; player.vy = 0; player.grounded = true;
             player.landSquash = Math.min(.18, player.landSquash + .14);
             playSound('land');
           }
         }
         jumpQueued = false;
         collideMove(player, player.vx * dt, player.vz * dt);
+        if (player.grounded) player.y = groundAt(player.x, player.z);
         // Body animation: running bob and lean, landing squash, and a staff flourish when casting.
         const moving = player.grounded && Math.hypot(player.vx, player.vz) > .5;
         const strideBefore = player.stride;
@@ -4444,9 +4772,10 @@
         const punch = 1 + player.hitPunch * .1;
         player.body.scale.set(.72 * punch * (1 + player.landSquash * .5), .72 * punch * (1 - player.landSquash), .72 * punch * (1 + player.landSquash * .5));
         player.body.userData.castPose(player.castFlash);
-        shadowBlob.position.set(player.x, .02, player.z);
-        shadowBlob.scale.setScalar(Math.max(.45, 1 - player.y * .22));
-        shadowBlob.material.opacity = .42 * Math.max(.35, 1 - player.y * .25);
+        const shadowFloor = groundAt(player.x, player.z), lift = player.y - shadowFloor;
+        shadowBlob.position.set(player.x, shadowFloor + .02, player.z);
+        shadowBlob.scale.setScalar(Math.max(.45, 1 - lift * .22));
+        shadowBlob.material.opacity = .42 * Math.max(.35, 1 - lift * .25);
         player.mana = Math.min(100, player.mana + dt * 5.5);
         regenerateHealth(player, dt);
         updateShield(player, dt);
@@ -4563,7 +4892,28 @@
           return;
         }
       }
+      // Tutorial partner: stands by its vault, never attacks, casts or steals, and comes back if knocked out.
+      function updatePassiveRival(rival, dt) {
+        if (rival.hp <= 0) {
+          if (elapsed < rival.respawnAt) return;
+          Object.assign(rival, { hp: 100, mana: 100, x: rival.vault.x + 2.6, z: rival.vault.z, slowUntil: 0, burnUntil: 0, wardUntil: 0 });
+          rival.body.visible = true;
+        }
+        regenerateHealth(rival, dt);
+        updateShield(rival, dt);
+        rival.y = groundAt(rival.x, rival.z);
+        rival.gaitAmount = approach(rival.gaitAmount || 0, 0, dt * 8);
+        rival.body.userData.gait(rival.stride || 0, rival.gaitAmount);
+        rival.body.position.set(rival.x, rival.y, rival.z);
+        if (!player.dead) rival.body.rotation.y = Math.atan2(player.x - rival.x, player.z - rival.z) + Math.PI;
+        rival.hitPunch = Math.max(0, rival.hitPunch - dt * 5);
+        rival.body.scale.setScalar(.85 * (1 + rival.hitPunch * .14));
+        rival.castFlash = Math.max(0, (rival.castFlash || 0) - dt * 3.2);
+        rival.body.userData.castPose(rival.castFlash);
+        rival.body.userData.animate(elapsed + rival.index);
+      }
       function updateRival(rival, dt) {
+        if (rival.passive) { updatePassiveRival(rival, dt); return; }
         if (rival.hp <= 0) {
           if (elapsed < rival.respawnAt) return;
           // Back at full health beside its vault.
@@ -4575,7 +4925,7 @@
         regenerateHealth(rival, dt);
         for (const slot in rival.spellCooldowns) rival.spellCooldowns[slot] = Math.max(0, rival.spellCooldowns[slot] - dt);
         updateShield(rival, dt);
-        const eye = new THREE.Vector3(rival.x, 1.4, rival.z);
+        const eye = new THREE.Vector3(rival.x, (rival.y || 0) + 1.4, rival.z);
         const enemies = enemiesOf(rival);
         const visible = enemies.filter(enemy => distanceXZ(enemy, rival) < 24 && hasLineOfSight(eye, chestOf(enemy)))
           .sort((first, second) => distanceXZ(first, rival) - distanceXZ(second, rival));
@@ -4666,7 +5016,8 @@
         rival.stride = (rival.stride || 0) + walked * 2.3;
         rival.gaitAmount = approach(rival.gaitAmount || 0, walking ? 1 : 0, dt * 8);
         rival.body.userData.gait(rival.stride, rival.gaitAmount);
-        rival.body.position.set(rival.x, Math.abs(Math.cos(rival.stride)) * .09 * rival.gaitAmount, rival.z);
+        rival.y = groundAt(rival.x, rival.z);
+        rival.body.position.set(rival.x, rival.y + Math.abs(Math.cos(rival.stride)) * .09 * rival.gaitAmount, rival.z);
         // Lean a little into the run, and flourish the staff when casting.
         rival.body.rotation.z = Math.sin(rival.stride) * .035 * rival.gaitAmount;
         rival.castFlash = Math.max(0, (rival.castFlash || 0) - dt * 3.2);
@@ -4732,7 +5083,7 @@
             projectile.flewBy = true;
             playSound(`flyby-${projectile.theme}`, { x: projectile.mesh.position.x, z: projectile.mesh.position.z, y: projectile.mesh.position.y - 1.2 });
           }
-          if (projectile.mesh.position.y < 0) impact = true;
+          if (projectile.mesh.position.y < groundAt(projectile.mesh.position.x, projectile.mesh.position.z)) impact = true;
           // Each school leaves its own trail: leaves, frost, or fire.
           projectile.trailTimer -= dt;
           if (projectile.trailTimer <= 0) {
@@ -4780,7 +5131,7 @@
               const ambient = wall.theme === 'fire' ? 3 : 1.2;
               if (Math.random() < dt * ambient) {
                 const colors = THEME_COLORS[wall.theme];
-                spawnParticle(new THREE.Vector3(wall.x + (Math.random() - .5), Math.random() * WALL_HEIGHT, wall.z + (Math.random() - .5)), Math.random() < .5 ? colors.glow : colors.mote, {
+                spawnParticle(new THREE.Vector3(wall.x + (Math.random() - .5), (wall.baseY || 0) + Math.random() * WALL_HEIGHT, wall.z + (Math.random() - .5)), Math.random() < .5 ? colors.glow : colors.mote, {
                   size: .1, life: .9, velocity: new THREE.Vector3(0, wall.theme === 'frost' ? -.3 : .9, 0)
                 });
               }
@@ -4790,7 +5141,7 @@
           scene.remove(wall.mesh);
           if (wall.born !== undefined && elapsed - lastCrumbleAt > .25) { lastCrumbleAt = elapsed; playSound(`crumble-${wall.theme || 'nature'}`, wall); }
           if (!wall.shared) { wall.mesh.geometry.dispose(); wall.mesh.material.dispose(); }
-          if (wall.born !== undefined) burst(new THREE.Vector3(wall.x, .3, wall.z), '#b8ad92', 4, { speed: 2, size: .14, life: .5, gravity: 4, up: .6 });
+          if (wall.born !== undefined) burst(new THREE.Vector3(wall.x, (wall.baseY || 0) + .3, wall.z), '#b8ad92', 4, { speed: 2, size: .14, life: .5, gravity: 4, up: .6 });
           if (wall.born !== undefined) rivals.forEach(rival => { rival.pathRefresh = 0; });
           const index = wallColliders.indexOf(wall);
           if (index >= 0) wallColliders.splice(index, 1);
@@ -4811,7 +5162,8 @@
         cam.distance += (cam.zoom - cam.distance) * (1 - Math.exp(-dt * 8));
         // Orbit around a pivot at the character's shoulders.
         // Follow only part of the jump height so the view stays steady (WoW's camera barely bobs on a jump).
-        cam.pivotY += (1.45 + player.y * .6 - cam.pivotY) * (1 - Math.exp(-dt * 14));
+        const floorY = groundAt(player.x, player.z);
+        cam.pivotY += (1.45 + floorY + (player.y - floorY) * .6 - cam.pivotY) * (1 - Math.exp(-dt * 14));
         const characterPivot = new THREE.Vector3(player.x, cam.pivotY, player.z);
         // Shift the view over the right shoulder so the centre reticle isn't hidden behind the character.
         // The shift shrinks when a wall is beside you so the camera never pokes into it.
@@ -4831,12 +5183,13 @@
           const origin = pivot.clone().addScaledVector(shoulderDirection, side).addScaledVector(up, lift);
           allowed = Math.min(allowed, rayWallDistance(origin, toCamera, cam.distance, .3));
         }
-        if (toCamera.y < -.01) allowed = Math.min(allowed, (pivot.y - .3) / -toCamera.y);
+        if (toCamera.y < -.01) allowed = Math.min(allowed, (pivot.y - .3 - floorY) / -toCamera.y);
         allowed = Math.max(.4, allowed - .1);
         // Snap in when blocked (so walls never cover the character), ease back out gently once clear.
         if (allowed < cam.actual) cam.actual = allowed;
         else if (allowed > cam.actual + .05) cam.actual += (allowed - cam.actual) * (1 - Math.exp(-dt * 2.5));
         camera.position.copy(pivot).addScaledVector(toCamera, cam.actual);
+        if (arena.terrain) camera.position.y = Math.max(camera.position.y, groundAt(camera.position.x, camera.position.z) + .3);
         // Brief shake on big hits.
         if (cam.shake > 0) {
           camera.position.add(new THREE.Vector3((Math.random() - .5) * cam.shake, (Math.random() - .5) * cam.shake, (Math.random() - .5) * cam.shake));
@@ -4854,14 +5207,16 @@
       function updateMinimap() {
         const size = minimap.width, cell = size / gridSize;
         minimapContext.clearRect(0, 0, size, size);
-        minimapContext.fillStyle = '#1c1538';
+        minimapContext.fillStyle = arena.minimap.background;
         minimapContext.fillRect(0, 0, size, size);
         for (let row = 0; row < gridSize; row++) {
           for (let col = 0; col < gridSize; col++) {
             const x = col * cell, y = row * cell, data = cells[row][col];
-            minimapContext.fillStyle = (row + col) % 2 ? '#2b2356' : '#322960';
+            minimapContext.fillStyle = arena.minimap.cells[(row + col) % 2];
             minimapContext.fillRect(x, y, cell, cell);
-            minimapContext.strokeStyle = '#c2b0ff';
+            // High ground shows lighter.
+            if (cellLevels[row][col]) { minimapContext.fillStyle = `rgba(255, 214, 150, ${cellLevels[row][col] * .13})`; minimapContext.fillRect(x, y, cell, cell); }
+            minimapContext.strokeStyle = arena.minimap.walls;
             minimapContext.lineWidth = 2;
             minimapContext.beginPath();
             if (data.north) { minimapContext.moveTo(x, y); minimapContext.lineTo(x + cell, y); }
@@ -4870,6 +5225,16 @@
             if (data.west) { minimapContext.moveTo(x, y); minimapContext.lineTo(x, y + cell); }
             minimapContext.stroke();
           }
+        }
+        // Portals: a ring in each linked pair's colour.
+        for (const portal of portals) {
+          minimapContext.strokeStyle = portal.color;
+          minimapContext.fillStyle = `${portal.color}55`;
+          minimapContext.lineWidth = 2.5;
+          minimapContext.beginPath();
+          minimapContext.arc((portal.cell[1] + .5) * cell, (portal.cell[0] + .5) * cell, cell * .3, 0, Math.PI * 2);
+          minimapContext.fill();
+          minimapContext.stroke();
         }
         const point = actor => ({ x: (actor.x + worldEdge) / worldWidth * size, y: (actor.z + worldEdge) / worldWidth * size });
         const homePoint = point(home), playerPoint = point(player);
@@ -4889,7 +5254,7 @@
           const vaultPoint = point(rival.vault);
           diamond(vaultPoint, rival.vault.treasure.visible ? '#ffd36b' : '#5a5070');
           // Rivals only show while you can actually see them; maze walls and raised walls both hide them.
-          if (rival.hp > 0 && !player.dead && hasLineOfSight(eye, new THREE.Vector3(rival.x, 1.3, rival.z))) {
+          if (rival.hp > 0 && !player.dead && hasLineOfSight(eye, new THREE.Vector3(rival.x, (rival.y || 0) + 1.3, rival.z))) {
             const rivalPoint = point(rival);
             minimapContext.fillStyle = rival.mapColor;
             minimapContext.beginPath(); minimapContext.arc(rivalPoint.x, rivalPoint.y, 3.2, 0, Math.PI * 2); minimapContext.fill();
@@ -5074,7 +5439,7 @@
         // Walk cycle from actual movement (same as the AI), casting flourish and idle effects.
         const walked = Math.hypot(rival.x - (rival.animX ?? rival.x), rival.z - (rival.animZ ?? rival.z));
         rival.animX = rival.x; rival.animZ = rival.z;
-        const airborne = (rival.y || 0) > .05;
+        const airborne = (rival.y || 0) - groundAt(rival.x, rival.z) > .05;
         rival.stride = (rival.stride || 0) + walked * 2.3;
         rival.gaitAmount = approach(rival.gaitAmount || 0, !airborne && dt > 0 && walked / dt > .6 ? 1 : 0, dt * 8);
         rival.body.userData.gait(rival.stride, rival.gaitAmount, airborne ? 1 : 0);
@@ -5163,7 +5528,9 @@
           blinkReach: (x, z, angle) => { const saved = [player.x, player.z]; player.x = x; player.z = z; const travel = blinkReach(player, new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle)), kit.blink.distance); player.x = saved[0]; player.z = saved[1]; return travel; },
           cellWorld: index => cellWorld(index), gridSize,
           pathClear: (x1, z1, x2, z2) => { for (let step = 0; step <= 60; step++) { const t = step / 60; if (!canMoveTo(x1 + (x2 - x1) * t, z1 + (z2 - z1) * t, .05)) return false; } return true; },
-          me: () => ({ x: player.x, z: player.z, mana: player.mana })
+          me: () => ({ x: player.x, z: player.z, y: player.y, mana: player.mana, yaw: player.yaw }),
+          arena: () => ({ id: arena.id, levels: cellLevels.map(row => row.join('')), portals: portals.map(portal => ({ name: portal.name, partner: portal.partner.name, x: portal.visual.x, z: portal.visual.z })), bases: [layout.home, ...layout.rivals] }),
+          ground: (x, z) => groundAt(x, z)
         };
       }
       function frame(time) {
@@ -5187,6 +5554,7 @@
           updatePlayer(dt);
           allWizards().forEach(wizard => trackVelocity(wizard, dt));
           rivals.forEach(rival => rival.netDriven ? updateNetRival(rival, dt) : updateRival(rival, dt));
+          updatePortals(dt);
           updateProjectiles(dt);
           updateStatus(player, dt);
           rivals.forEach(rival => updateStatus(rival, dt));
@@ -5207,7 +5575,7 @@
             if (!isGuest && elapsed >= player.respawnAt) respawnPlayer();
             else showToast(`You were defeated · respawning in ${Math.max(1, Math.ceil(player.respawnAt - elapsed))}`);
           }
-          if (!isGuest && elapsed >= 300) endMatch('timeout');
+          if (!isGuest && elapsed >= 300 && !config.tutorial) endMatch('timeout');
           scoreboardTimer += dt;
           if (scoreboardOpen && scoreboardTimer >= .25) { renderScoreboard(); scoreboardTimer = 0; }
           updateHud();
@@ -5232,6 +5600,7 @@
         updateCamera(dt);
         updateWallPlacement();
         updateEnemyBars();
+        updateTutorial();
         // Reticle turns red over the rival, and hides while you wait to respawn.
         reticle.classList.toggle('on-target', !wallPlacement && getAim().kind === 'rival');
         reticle.classList.toggle('placing', !!wallPlacement);
@@ -5264,7 +5633,7 @@
         gameMenu.hidden = !open;
         forfeitArmed = false;
         forfeitButton.classList.remove('confirming');
-        forfeitButton.textContent = 'Forfeit match';
+        forfeitButton.textContent = config.tutorial ? 'Leave tutorial' : 'Forfeit match';
         if (!open) { document.querySelector('#forfeit-warning').textContent = ''; return; }
         // Let go of everything so nothing keeps moving or casting behind the menu.
         keys.clear();
@@ -5281,6 +5650,7 @@
         document.querySelector('#forfeit-warning').textContent = lostRp !== null ? `Forfeiting counts as a loss (${lostRp} RP).`
           : isHost ? 'You are hosting: leaving ends the match for everyone.'
           : isGuest ? 'Leaving counts as a loss for you. An AI takes over your gnome.'
+          : config.tutorial ? 'You can start the tutorial again from the menu any time.'
           : config.matchType === 'unranked' ? 'Forfeiting counts as a loss. Rank is not affected.' : 'Practice match: no rank change.';
       }
       // Forfeit asks for a second click to confirm, then counts as a loss and returns to the start menu.
@@ -5288,7 +5658,7 @@
         if (!forfeitArmed) {
           forfeitArmed = true;
           forfeitButton.classList.add('confirming');
-          forfeitButton.textContent = 'Click again to forfeit';
+          forfeitButton.textContent = config.tutorial ? 'Click again to leave' : 'Click again to forfeit';
           return;
         }
         if (gameState !== 'playing') return;
@@ -5494,12 +5864,113 @@
         castSpell(slot.dataset.actionSpell);
       }));
       document.querySelector('#interact-action').addEventListener('click', interact);
+      // ---------- Tutorial ----------
+      // A guided practice match against a gnome who never fights back. One step at a time, the HUD element being
+      // described is outlined in gold. Info steps continue with Enter (or the Continue button); task steps
+      // continue on their own as soon as you've done the thing.
+      const tutorial = config.tutorial ? { index: -1, counters: { bolt: 0, special: 0, wall: 0, ward: 0, blink: 0 }, base: null, start: null, doneAt: null } : null;
+      const tutorialCard = document.querySelector('#tutorial-card'), tutorialSpot = document.querySelector('#tutorial-spot');
+      const kbd = action => `<kbd>${escapeHtml(keyName(action))}</kbd>`;
+      const practiceRival = rivals[0];
+      const classicCamera = config.cameraMode === 'classic';
+      const tutorialSteps = !tutorial ? [] : [
+        { title: 'Welcome to Arcane Arena', info: true,
+          text: `This practice match covers the basics: moving, casting spells, and raiding a rival's vault to capture its treasure.<br><br>Your opponent, <b>${escapeHtml(practiceRival.name)}</b>, won't fight back. ${classicCamera ? 'Hold the right mouse button to steer.' : 'Click the arena to take control of the camera.'} Press <kbd>Esc</kbd> any time for the menu.` },
+        { title: 'Move around',
+          text: `Walk with ${kbd('forward')}${kbd('left')}${kbd('back')}${kbd('right')}. ${classicCamera ? 'Hold the right mouse button and drag to turn.' : 'Move the mouse to turn and aim.'} Take a few steps.`,
+          done: () => distanceXZ(player, tutorial.start) > 6 },
+        { title: 'Jump', text: `Press ${kbd('jump')} to jump. Handy for hopping over spells.`, done: () => !player.grounded },
+        { title: 'Health and mana', info: true, spot: ['.hud-health', '.hud-mana'],
+          text: 'The <b>green bar</b> is your health. At zero you are knocked out for a few seconds, then come back at your vault. It slowly refills when you stay out of fights.<br><br>The <b>blue bar</b> is mana. Every spell costs mana (the small number on its button), and mana refills on its own.' },
+        { title: 'Basic attack', spot: ['.basic-slot'],
+          text: `Left-click to fire <b>${escapeHtml(kit.bolt.name)}</b> at the reticle in the middle of the screen. Head hits deal extra damage. Fire one now.`,
+          done: () => tutorial.counters.bolt > tutorial.base.bolt },
+        { title: 'Your spells', spot: ['.action-slots', '[data-action-spell="blink"]'],
+          text: `${kbd('special')} <b>${escapeHtml(kit.special.name)}</b>: your signature spell.<br>${kbd('wall')} <b>${escapeHtml(kit.wall.name)}</b>: block a corridor.<br>${kbd('ward')} <b>${escapeHtml(kit.ward.name)}</b>: protect yourself.<br>${kbd('blink')} <b>${escapeHtml(kit.blink.name)}</b>: a quick dash.<br><br>The dark sweep over a button is its cooldown. Face an open corridor and press ${kbd('blink')} to dash.`,
+          done: () => tutorial.counters.blink > tutorial.base.blink },
+        { title: 'Minimap', info: true, spot: ['.minimap-wrap'],
+          text: `You are the <b>white arrow</b>. Your vault is the <b style="color:${HOME_COLOR}">cyan ◆</b>, and rival vaults are <b style="color:#ffd36b">gold ◆</b> while their treasure is still at home. Rivals only show up while you can see them.${portals.length ? ' Coloured circles are portals: matching colours are linked.' : ''}` },
+        { title: 'Treasure race', info: true, spot: ['#race-tracker'],
+          text: `Each row is one wizard. The pips are captures: <b>first to ${CAPTURES_TO_WIN} wins</b>. When a treasure is stolen, its row shows who has it and a bar of how close they are to getting it home.` },
+        { title: 'Raid the rival vault', spot: ['#objective-prompt'],
+          text: `Follow the gold <b>STEAL</b> marker floating over the maze to ${escapeHtml(practiceRival.name)}'s vault. It shows the distance in metres and can be seen through walls. The hint above your spells always says what to do next.`,
+          done: () => distanceXZ(player, practiceRival.vault) < 3.4 },
+        { title: 'Steal the treasure', spot: ['#interact-action'], text: `Press ${kbd('interact')} to steal the treasure.`, done: () => !!player.carrying },
+        { title: 'Bring it home', spot: ['#race-tracker'],
+          text: 'Got it! While carrying, you move a little slower and a beacon over your head shows everyone where you are. Follow <b>BRING IT HOME</b> back to your vault (the cyan beam of light) and step onto it. If you are knocked out on the way, the treasure goes back to its owner.',
+          done: () => player.captures >= 1 },
+        { title: 'Captured!', info: true, spot: ['#timer'],
+          text: `That's a capture. Two more rules for real matches:<br>• You <b>can't score while your own treasure is stolen</b>. Knock out the thief to send it home.<br>• When the <b>timer</b> runs out, whoever has the most captures wins.` },
+        { title: 'Scoreboard', text: `Press ${kbd('scoreboard')} to open the scoreboard: captures, knockouts and damage for every wizard.`, done: () => scoreboardOpen },
+        { title: "You're ready!", info: true, last: true,
+          text: 'That covers everything you need. Try a <b>Versus AI</b> match next, pick one of the three arenas, or invite a friend with <b>Private match</b>.' }
+      ];
+      function showTutorialStep(index) {
+        const step = tutorialSteps[index];
+        Object.assign(tutorial, { index, start: { x: player.x, z: player.z }, base: { ...tutorial.counters }, doneAt: null });
+        document.querySelector('#tutorial-step').textContent = `Tutorial · ${index + 1} / ${tutorialSteps.length}`;
+        document.querySelector('#tutorial-title').textContent = step.title;
+        document.querySelector('#tutorial-text').innerHTML = step.text;
+        document.querySelector('#tutorial-hint').textContent = step.info ? '' : 'Do it to continue';
+        const next = document.querySelector('#tutorial-next');
+        next.hidden = !step.info;
+        next.textContent = step.last ? 'Finish ↵' : 'Continue ↵';
+        tutorialCard.classList.remove('done', 'step-in');
+        void tutorialCard.offsetWidth;
+        tutorialCard.classList.add('step-in');
+        tutorialCard.hidden = false;
+      }
+      function advanceTutorial() {
+        if (!tutorial || gameState !== 'playing' || tutorial.index < 0) return;
+        if (tutorialSteps[tutorial.index].last) { finishTutorial(); return; }
+        showTutorialStep(tutorial.index + 1);
+      }
+      function finishTutorial() {
+        tutorialCard.hidden = tutorialSpot.hidden = true;
+        if (scoreboardOpen) setScoreboard(false);
+        endMatch('won', player, 'Tutorial complete!');
+      }
+      // Every frame: check the current task, and keep the gold outline on the HUD element being described.
+      function updateTutorial() {
+        if (!tutorial || tutorial.index < 0) return;
+        if (gameState !== 'playing') { tutorialCard.hidden = tutorialSpot.hidden = true; return; }
+        const step = tutorialSteps[tutorial.index];
+        if (!step.info && tutorial.doneAt === null && step.done()) {
+          tutorial.doneAt = performance.now();
+          document.querySelector('#tutorial-hint').textContent = '✓ Nice!';
+          tutorialCard.classList.add('done');
+          playSound('respawn');
+        }
+        if (tutorial.doneAt !== null && performance.now() - tutorial.doneAt > 900) { advanceTutorial(); return; }
+        const stage = document.querySelector('.stage-wrap').getBoundingClientRect();
+        const rects = (step.spot || []).map(selector => document.querySelector(selector))
+          .filter(element => element && !element.hidden && element.offsetParent !== null)
+          .map(element => element.getBoundingClientRect()).filter(rect => rect.width && rect.height);
+        tutorialSpot.hidden = !rects.length;
+        if (!rects.length) return;
+        const left = Math.min(...rects.map(rect => rect.left)), top = Math.min(...rects.map(rect => rect.top));
+        const right = Math.max(...rects.map(rect => rect.right)), bottom = Math.max(...rects.map(rect => rect.bottom));
+        Object.assign(tutorialSpot.style, { left: `${left - stage.left - 6}px`, top: `${top - stage.top - 6}px`, width: `${right - left + 12}px`, height: `${bottom - top + 12}px` });
+      }
+      if (tutorial) {
+        // Enter continues info steps (caught before the game sees it, since Enter is also the cast key).
+        window.addEventListener('keydown', event => {
+          const step = tutorialSteps[tutorial.index];
+          if (event.code !== 'Enter' || !step || !step.info || gameMenuOpen) return;
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          if (!event.repeat) advanceTutorial();
+        }, true);
+        document.querySelector('#tutorial-next').addEventListener('click', advanceTutorial);
+        document.querySelector('#tutorial-next').addEventListener('pointerdown', event => event.stopPropagation());
+        setTimeout(() => showTutorialStep(0), 700);
+      }
       window.addEventListener('resize', resize);
       resize();
       updateHud();
       updateMinimap();
       updateObjectiveHud();
-      showToast('Steal rival treasure ◆ and carry it home · first to 3 captures wins', 4500);
+      if (!config.tutorial) showToast(`${arena.name} · steal rival treasure ◆ and carry it home · first to 3 captures wins`, 4500);
       updateMarkers();
       requestAnimationFrame(frame);
     };
@@ -5536,6 +6007,7 @@
       let profile;
       try { profile = { ...defaults, ...JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') }; } catch { profile = { ...defaults }; }
       if (!RANKED_OPEN && profile.matchType === 'ranked') profile.matchType = 'ai';
+      if (profile.map !== 'random' && !window.ARENA_MAPS[profile.map]) profile.map = 'random';
       profile.rp = { ...defaults.rp, ...(profile.rp || {}) };
       profile.record ={ ...defaults.record, ...(profile.record || {}) };
       profile.owned = Array.isArray(profile.owned) ? profile.owned : [];
@@ -5694,6 +6166,9 @@
             <div class="rank-track"><div class="rank-progress" style="width:${Math.round((rank.placing ? rank.played / PLACEMENT_GAMES : rank.progress) * 100)}%;background:${rank.color}"></div></div>
             <span class="rp">${rankLine(rank)}</span></div></div>`;
         }).join('');
+        document.querySelectorAll('[data-map]').forEach(button => button.classList.toggle('active', button.dataset.map === profile.map));
+        $('#tutorial-button').textContent = profile.tutorialDone ? '🎓 Tutorial' : '🎓 New here? Play the tutorial';
+        $('#tutorial-button').classList.toggle('recommended', !profile.tutorialDone);
         $('#play-button').textContent = profile.matchType === 'ranked' ? 'Find ranked match' : profile.matchType === 'unranked' ? 'Find match' : profile.matchType === 'friends' ? 'Open lobby' : 'Play';
         shareProfile();
         renderPreviewText();
@@ -6587,6 +7062,10 @@
         $('#lobby-fill-label').hidden = mode !== '1v1v1';
         $('#lobby-fill').checked = fillAI;
         $('#lobby-fill').disabled = !online.host;
+        document.querySelectorAll('[data-lobby-map]').forEach(button => {
+          button.classList.toggle('active', button.dataset.lobbyMap === (lobby.settings.map || 'random'));
+          button.disabled = !online.host;
+        });
         const rows = players.map(player => {
           const model = WIZARD_MODELS.find(entry => entry.id === player.model) || WIZARD_MODELS[0];
           return `<div class="lobby-player${player.seat === online.seat ? ' you' : ''}"><span class="option-sigil">${model.sigil}</span>
@@ -6652,9 +7131,9 @@
         try { await navigator.clipboard.writeText(inviteLink()); setLobbyStatus('Invite link copied!'); } catch { setLobbyStatus('Copy the link below and send it to your friend.'); }
       });
       document.querySelectorAll('[data-lobby-mode]').forEach(button => button.addEventListener('click', () => {
-        if (online.host && online.lobby) onlineSend({ t: 'settings', mode: button.dataset.lobbyMode, fillAI: online.lobby.settings.fillAI });
+        if (online.host && online.lobby) onlineSend({ t: 'settings', mode: button.dataset.lobbyMode, fillAI: online.lobby.settings.fillAI, map: online.lobby.settings.map });
       }));
-      $('#lobby-fill').addEventListener('change', () => { if (online.host && online.lobby) onlineSend({ t: 'settings', mode: online.lobby.settings.mode, fillAI: $('#lobby-fill').checked }); });
+      $('#lobby-fill').addEventListener('change', () => { if (online.host && online.lobby) onlineSend({ t: 'settings', mode: online.lobby.settings.mode, fillAI: $('#lobby-fill').checked, map: online.lobby.settings.map }); });
       // Changing your gnome or cosmetics while in a lobby updates what the others see.
       const shareProfile = () => { if (online.code) onlineSend({ t: 'profile', profile: lobbyProfile() }); };
       // Host: lock in the seats (players, plus an AI if asked) and a map seed, then start everyone together.
@@ -6679,7 +7158,7 @@
           seats.push({ seat: seats.length, lobbySeat: -1, kind: 'ai', name: { grovewarden: 'Bramble Root', stormcaller: 'Orrin Moss', embersage: 'Cinder Vale' }[model], model, title: '',
             level: 1, rating: Math.round(seats.reduce((sum, seat) => sum + seat.rating, 0) / seats.length), cosmetics: { skin: skin.id }, color: DEFAULT_ROBES[model] });
         }
-        onlineSend({ t: 'start', setup: { mode: lobby.settings.mode, seed: Math.floor(Math.random() * 2 ** 31), seats } });
+        onlineSend({ t: 'start', setup: { mode: lobby.settings.mode, map: resolveMap(lobby.settings.map || 'random'), seed: Math.floor(Math.random() * 2 ** 31), seats } });
       });
       function startOnlineMatch(setup) {
         const me = setup.seats.find(seat => seat.lobbySeat === online.seat);
@@ -6689,7 +7168,7 @@
         online.match = { setup, toMatchSeat };
         profile.mode = setup.mode;
         launch({
-          role: online.host ? 'host' : 'guest', seat: me.seat, seed: setup.seed, seats: setup.seats,
+          role: online.host ? 'host' : 'guest', seat: me.seat, seed: setup.seed, seats: setup.seats, map: setup.map,
           send: message => onlineSend({ t: 'g', m: message }),
           listen: listener => { online.gameListener = listener; }
         });
@@ -6701,43 +7180,90 @@
         setTimeout(() => openLobby(joinFromLink.toUpperCase().slice(0, 4)), 0);
       }
 
+      // ---------- Arena picker and tutorial ----------
+      // Pick an arena (or Random) for solo matches; the host's pick is used for private matches.
+      const ARENA_CHOICES = ['random', ...ARENA_ORDER];
+      const resolveMap = choice => window.ARENA_MAPS[choice] ? choice : ARENA_ORDER[Math.floor(Math.random() * ARENA_ORDER.length)];
+      function mapSwatch(id) {
+        if (id === 'random') return `conic-gradient(${ARENA_ORDER.map(key => ARENA_MAPS[key].sky.horizon).join(', ')}, ${ARENA_MAPS[ARENA_ORDER[0]].sky.horizon})`;
+        const map = ARENA_MAPS[id];
+        return `linear-gradient(140deg, ${map.sky.horizon}, ${map.floor.tiles[1]} 55%, ${map.sky.top})`;
+      }
+      function mapButtons(attribute) {
+        return ARENA_CHOICES.map(id => {
+          const map = ARENA_MAPS[id];
+          const title = map ? map.blurb : 'One of the three arenas, picked at random each match.';
+          return `<button class="map-choice" type="button" ${attribute}="${id}" title="${escapeMenu(title)}"><span class="map-swatch" style="background:${mapSwatch(id)}"></span><span><strong>${map ? map.short : 'Random'}</strong><small>${map ? map.feature : 'Surprise me'}</small></span></button>`;
+        }).join('');
+      }
+      $('#map-options').innerHTML = mapButtons('data-map');
+      $('#lobby-maps').innerHTML = mapButtons('data-lobby-map');
+      document.querySelectorAll('[data-map]').forEach(button => button.addEventListener('click', () => { profile.map = button.dataset.map; save(); renderMenu(); }));
+      document.querySelectorAll('[data-lobby-map]').forEach(button => button.addEventListener('click', () => {
+        if (online.host && online.lobby) onlineSend({ t: 'settings', mode: online.lobby.settings.mode, fillAI: online.lobby.settings.fillAI, map: button.dataset.lobbyMap });
+      }));
+      $('#tutorial-button').addEventListener('click', () => {
+        if (readyCheck) endReadyCheck();
+        launch(null, { tutorial: true });
+      });
+      function showTutorialResult() {
+        profile.tutorialDone = true;
+        save();
+        $('#match-end-title').textContent = 'Tutorial complete';
+        $('#match-end-detail').textContent = 'You know the basics: move, cast, steal a treasure and bring it home. Try a Versus AI match next.';
+        $('#match-end-rp').textContent = '';
+        $('#match-end-rewards').innerHTML = '';
+        $('#match-end-board').innerHTML = '';
+        $('#match-end-rematch').hidden = true;
+        $('#match-end').hidden = false;
+      }
+
       // ---------- Starting a match ----------
-      function applyMatchHud() {
-        const mode = profile.mode, ranked = profile.matchType === 'ranked', model = modelInfo(), name = displayName();
+      function applyMatchHud(mode, matchType, mapId, tutorial = false) {
+        const model = modelInfo(), name = displayName(), map = window.ARENA_MAPS[mapId] || window.ARENA_MAPS.verdant;
+        const typeName = tutorial ? 'Tutorial' : MATCH_TYPES[matchType];
         $('.profile span').textContent = name;
         $('.avatar').textContent = name.charAt(0).toUpperCase();
         $('.class-sigil').textContent = model.sigil;
         $('.class-copy strong').textContent = model.name;
         $('.class-copy small').textContent = model.role;
-        $('.match-head .eyebrow').textContent = `Maze raid · ${MODES[mode]} · ${MATCH_TYPES[profile.matchType]}`;
+        $('.match-head .eyebrow').textContent = `Maze raid · ${MODES[mode]} · ${typeName}`;
+        $('.match-head h1').textContent = map.name;
+        $('.sb-head h2').textContent = map.name;
         // The map name and match info live in the arena HUD now that the page title is hidden during play.
-        $('#stage-label').innerHTML = `✧ &nbsp;<span class="map-name">The Verdant Hollow</span> &nbsp;<span class="map-meta">${MODES[mode]} · ${MATCH_TYPES[profile.matchType]}</span>`;
+        $('#stage-label').innerHTML = `✧ &nbsp;<span class="map-name"></span> &nbsp;<span class="map-meta">${MODES[mode]} · ${typeName}</span>`;
+        $('#stage-label .map-name').textContent = map.name;
+        $('#stage-label .map-name').style.color = map.hud;
         $('.match-meta span').innerHTML = `${mode === '1v1v1' ? 3 : 2} <b>wizards</b>`;
         $('#alive-count').previousElementSibling.textContent = mode === '1v1v1' ? 'Rival wizards' : 'Rival wizard';
-        $('#alive-count').textContent = profile.matchType === 'ai' ? 'AI' : profile.matchType === 'friends' ? 'Online' : 'AI stand-in';
+        $('#alive-count').textContent = tutorial ? 'Practice' : matchType === 'ai' ? 'AI' : matchType === 'friends' ? 'Online' : 'AI stand-in';
         const rank = rankFor(profile.rp[mode], profile.record[mode]);
         $('.rank-name').textContent = rank.name;
         $('.rank-score').textContent = `${rank.rp.toLocaleString()} RP`;
         $('.panel-section:last-child .rank-progress').style.width = `${Math.round(rank.progress * 100)}%`;
         $('.rank-caption').innerHTML = `<span>${rankLine(rank)}</span><span>${MODES[mode]}</span>`;
       }
-      function launch(net = null) {
+      function launch(net = null, options = {}) {
         previewRunning = false;
         if (menuBackdrop3D) menuBackdrop3D.stop();
         document.body.classList.remove('in-menu');
         document.body.classList.add('in-match');
         $('#menu').hidden = true;
         if (net) profile.matchType = 'friends';
-        applyMatchHud();
-        const mode = profile.mode, matchType = profile.matchType;
+        // The tutorial is always a 1v1 practice match in the classic arena. Online, the host picked the arena.
+        const tutorial = !!options.tutorial;
+        const mode = tutorial ? '1v1' : profile.mode, matchType = tutorial ? 'ai' : profile.matchType;
+        const map = net ? (window.ARENA_MAPS[net.map] ? net.map : 'verdant') : tutorial ? 'verdant' : resolveMap(profile.map);
+        applyMatchHud(mode, matchType, map, tutorial);
         window.startMatch({
-          net,
+          net, map, tutorial,
           mode, matchType, name: displayName(), model: profile.model, color: lookFor(profile.model).color, cosmetics: { skin: equippedSkin(profile.model), aura: profile.equipped.aura, dye: activeDye() ? activeDye().id : null }, title: equippedTitle(), sensitivity: profile.sensitivity, cameraMode: profile.cameraMode, graphics: profile.graphics || "high", keys: currentKeys(),
           sigil: modelInfo().sigil, role: modelInfo().role, rating: profile.rp[mode], record: profile.record[mode],
           rankName: rp => rankFor(rp).name, playerRankName: rankFor(profile.rp[mode], profile.record[mode]).name,
           // Ranked only: the player's exact RP change, plus win/loss amounts for the AI stand-ins.
           ratingChanges: matchType === 'ranked' ? result => ({ player: ratingChangeFor(mode, result), win: RP_CHANGE[mode].won, loss: RP_CHANGE[mode].lost }) : null,
           onEnd: ({ result, scoreboard, forfeit, stats, note }) => {
+            if (tutorial && !forfeit) { showTutorialResult(); return; }
             // A forfeit counts as a loss and goes straight back to the start menu.
             if (forfeit) {
               applyResult('lost', mode, matchType);
@@ -6837,7 +7363,7 @@
       $('#match-end-rematch').addEventListener('click', () => {
         let plan = { kind: 'solo' };
         if (online.match && online.code) {
-          plan = { kind: online.host ? 'host' : 'guest', code: online.code, mode: online.match.setup.mode, fillAI: online.lobby ? online.lobby.settings.fillAI : true };
+          plan = { kind: online.host ? 'host' : 'guest', code: online.code, mode: online.match.setup.mode, fillAI: online.lobby ? online.lobby.settings.fillAI : true, map: (online.lobby && online.lobby.settings.map) || 'random' };
           if (online.host) onlineSend({ t: 'leave' });
         }
         sessionStorage.setItem(REMATCH_KEY, JSON.stringify(plan));
@@ -6853,7 +7379,7 @@
         profile.mode = plan.mode === '1v1v1' ? '1v1v1' : '1v1';
         renderMenu();
         if (plan.kind === 'host') {
-          online.rematch = { settings: { mode: profile.mode, fillAI: plan.fillAI !== false } };
+          online.rematch = { settings: { mode: profile.mode, fillAI: plan.fillAI !== false, map: plan.map || 'random' } };
           openLobby().then(() => createLobby(plan.code));
         } else {
           online.rematch = { joinCode: plan.code, tries: 0 };

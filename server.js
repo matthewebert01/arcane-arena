@@ -18,6 +18,7 @@ const { WebSocketServer } = require('ws');
 const PORT = Number(process.env.PORT) || 8080;
 const GAME_FILE = path.join(__dirname, 'index.html');
 const MAX_SEATS = 3;
+const ARENAS = ['random', 'verdant', 'frostveil', 'sunspire']; // arena choices the host can pick
 const CODE_LETTERS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no look-alikes (0/O, 1/I/L)
 
 // ---------- Static page ----------
@@ -80,7 +81,7 @@ function handle(client, message) {
       if (room) leaveRoom(client);
       // Tests may ask for a fixed code; otherwise a random one.
       const wanted = typeof message.code === 'string' && /^[A-Z0-9]{4}$/.test(message.code) && !rooms.has(message.code) ? message.code : newCode();
-      const created = { code: wanted, host: client, players: new Map(), settings: { mode: '1v1', fillAI: true }, started: false };
+      const created = { code: wanted, host: client, players: new Map(), settings: { mode: '1v1', fillAI: true, map: 'random' }, started: false };
       rooms.set(wanted, created);
       Object.assign(client, { room: wanted, seat: 0, profile: cleanProfile(message.profile) });
       created.players.set(0, client);
@@ -110,9 +111,9 @@ function handle(client, message) {
     }
     case 'settings': {
       if (!room || client !== room.host || room.started) return;
-      const settings = { mode: message.mode === '1v1v1' ? '1v1v1' : '1v1', fillAI: !!message.fillAI };
+      const settings = { mode: message.mode === '1v1v1' ? '1v1v1' : '1v1', fillAI: !!message.fillAI, map: ARENAS.includes(message.map) ? message.map : 'random' };
       // A changed match setup means everyone readies up again.
-      if (settings.mode !== room.settings.mode || settings.fillAI !== room.settings.fillAI) room.players.forEach(other => { other.ready = false; });
+      if (settings.mode !== room.settings.mode || settings.fillAI !== room.settings.fillAI || settings.map !== room.settings.map) room.players.forEach(other => { other.ready = false; });
       room.settings = settings;
       broadcastLobby(room);
       break;
