@@ -334,6 +334,25 @@
         radial-gradient(ellipse at 85% 110%, rgba(40, 220, 255, .16), transparent 50%),
         repeating-linear-gradient(135deg, rgba(255,255,255,.012) 0 1px, transparent 1px 5px), #0e0b15; }
     .menu[hidden] { display: none; }
+    /* Twinkling stars and a slowly drifting aurora behind the menu. */
+    .menu::before, .menu::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+    .menu::before { background:
+        radial-gradient(1px 1px at 7% 12%, #fff 99%, #0000), radial-gradient(1px 1px at 21% 31%, #fffc 99%, #0000),
+        radial-gradient(1.5px 1.5px at 34% 8%, #fff 99%, #0000), radial-gradient(1px 1px at 46% 24%, #fffa 99%, #0000),
+        radial-gradient(1px 1px at 58% 6%, #fff 99%, #0000), radial-gradient(1.5px 1.5px at 69% 19%, #ffe8c0 99%, #0000),
+        radial-gradient(1px 1px at 81% 9%, #fff 99%, #0000), radial-gradient(1px 1px at 93% 27%, #fffc 99%, #0000),
+        radial-gradient(1px 1px at 12% 58%, #fff9 99%, #0000), radial-gradient(1.5px 1.5px at 27% 74%, #c8f4ff 99%, #0000),
+        radial-gradient(1px 1px at 52% 88%, #fff9 99%, #0000), radial-gradient(1px 1px at 74% 66%, #fffa 99%, #0000),
+        radial-gradient(1.5px 1.5px at 89% 81%, #fff 99%, #0000), radial-gradient(1px 1px at 4% 92%, #fff8 99%, #0000);
+      animation: menu-twinkle 5s ease-in-out infinite alternate; }
+    .menu::after { background: radial-gradient(ellipse 60% 30% at 30% 20%, #6ef0d018, #0000 70%), radial-gradient(ellipse 50% 25% at 75% 30%, #b06bff1c, #0000 70%);
+      animation: menu-aurora 24s ease-in-out infinite alternate; }
+    @keyframes menu-twinkle { from { opacity: .45; } to { opacity: 1; } }
+    @keyframes menu-aurora { from { transform: translateX(-4%) scaleY(1); } to { transform: translateX(4%) scaleY(1.2); } }
+    .menu-inner { position: relative; z-index: 1; }
+    /* Cards: a faint top highlight like polished glass. */
+    .menu .menu-card { position: relative; box-shadow: 0 18px 50px #0006, inset 0 1px 0 #ffffff12, inset 0 0 40px #8a6aff08; }
+    @media (prefers-reduced-motion: reduce) { .menu::before, .menu::after, .chest.open::before { animation: none; } }
     .menu-inner { max-width: 1180px; margin: auto; padding: 16px 30px 18px; }
     /* Compact one-row logo (crest beside the title) so the whole menu fits on screen without scrolling. */
     .menu-title { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 14px; text-align: left; }
@@ -358,6 +377,8 @@
     .color-swatch.active { border-color: var(--gold); box-shadow: 0 0 0 2px #0e0b15, 0 0 10px #f0c87688; }
     .preview-card { display: flex; flex-direction: column; align-items: center; justify-content: space-between; text-align: center; }
     #preview { height: min(30vh, 300px); width: auto; max-width: 100%; aspect-ratio: .85; display: block; }
+    /* Fade the 3D stage's edges into the card so it never looks like a box. */
+    #preview, #collection-preview { -webkit-mask-image: radial-gradient(ellipse 50% 52% at 50% 48%, #000 62%, #0000 100%); mask-image: radial-gradient(ellipse 50% 52% at 50% 48%, #000 62%, #0000 100%); }
     .preview-name { margin-top: 6px; font: 22px var(--serif); color: #f1ead2; word-break: break-word; }
     .preview-role { margin-top: 4px; color: var(--muted); font-size: 11px; }
     .mode-options, .type-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -626,17 +647,38 @@
     .reward-pill.chest { border-color: #ffd36b; background: linear-gradient(180deg, #5b4c26, #3b3220); color: #ffe6a6; animation: chest-pulse 1.6s ease-in-out infinite; }
     .xp-breakdown { width: 100%; color: #8a80a6; font-size: 11px; }
     /* Chest opening */
-    .chest-overlay { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: radial-gradient(circle at 50% 40%, #3a2470ee, #07060bf5 70%); }
+    .chest-overlay { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; overflow: hidden; background: radial-gradient(1px 1px at 12% 22%, #fff8 99%, #0000), radial-gradient(1px 1px at 78% 14%, #fff9 99%, #0000), radial-gradient(1.5px 1.5px at 64% 70%, #fff6 99%, #0000), radial-gradient(1px 1px at 30% 80%, #fff7 99%, #0000), radial-gradient(1.5px 1.5px at 88% 52%, #fff8 99%, #0000), radial-gradient(circle at 50% 40%, #3a2470ee, #07060bf5 70%); }
     .chest-scene { display: flex; flex-direction: column; align-items: center; gap: 14px; width: min(860px, calc(100% - 30px)); }
     .chest-title { color: #ffe6a6; font: 30px var(--serif); letter-spacing: .08em; }
-    .chest { position: relative; width: 190px; height: 150px; cursor: pointer; transition: transform .3s; }
+    .chest { position: relative; width: 210px; height: 166px; cursor: pointer; transition: transform .3s; filter: drop-shadow(0 18px 22px #000c); }
     .chest:hover { transform: scale(1.04); }
-    .chest-base { position: absolute; left: 0; right: 0; bottom: 0; height: 92px; border: 4px solid #d9a83a; border-radius: 6px; background: repeating-linear-gradient(90deg, #6b3f1e 0 30px, #5a3418 30px 34px); box-shadow: 0 16px 40px #000a; }
-    .chest-base i { position: absolute; top: -4px; bottom: -4px; left: 42%; width: 16%; background: #d9a83a; }
-    .chest-base b { position: absolute; top: 14px; left: 50%; width: 26px; height: 30px; margin-left: -13px; border-radius: 4px; background: radial-gradient(circle at 50% 40%, #2a1d08 4px, #ffd36b 5px); box-shadow: 0 0 10px #ffd36baa; }
-    .chest-lid { position: absolute; left: 0; right: 0; top: 0; height: 64px; border: 4px solid #d9a83a; border-radius: 60px 60px 6px 6px; background: repeating-linear-gradient(90deg, #7a4822 0 30px, #5a3418 30px 34px); transform-origin: 50% 100%; transition: transform .5s cubic-bezier(.3, 1.6, .5, 1); z-index: 2; }
-    .chest-lid i { position: absolute; top: -4px; bottom: -4px; left: 42%; width: 16%; background: #d9a83a; border-radius: 30px 30px 0 0; }
-    .chest-glow { position: absolute; left: 50%; bottom: 60px; width: 20px; height: 20px; margin-left: -10px; border-radius: 50%; background: var(--glow, #ffd36b); box-shadow: 0 0 60px 30px var(--glow, #ffd36b); opacity: 0; transition: opacity .4s, transform .6s; z-index: 1; }
+    /* Floor shadow, and light rays that fan out when the chest opens. */
+    .chest::after { content: ''; position: absolute; left: 6%; right: 6%; bottom: -14px; height: 22px; border-radius: 50%; background: radial-gradient(#000a, #0000 70%); z-index: -1; }
+    .chest::before { content: ''; position: absolute; left: 50%; top: 40%; width: 520px; height: 520px; margin: -260px 0 0 -260px; border-radius: 50%; background: repeating-conic-gradient(from 0deg, var(--glow, #ffd36b) 0deg 6deg, #0000 6deg 22deg); -webkit-mask: radial-gradient(#000 10%, #0000 65%); mask: radial-gradient(#000 10%, #0000 65%); opacity: 0; transform: scale(.4) rotate(0deg); transition: opacity .5s, transform 1.2s cubic-bezier(.2, .8, .3, 1); z-index: -1; pointer-events: none; }
+    .chest.open::before { opacity: .35; transform: scale(1) rotate(25deg); animation: chest-rays 14s linear infinite; }
+    @keyframes chest-rays { to { transform: scale(1) rotate(385deg); } }
+    /* Wooden planks with grain, a dark bevel and polished brass edges. */
+    .chest-base, .chest-lid { border: 5px solid #e2b24a; border-color: #ffd98a #b98328 #8a5e1a #c99236; box-shadow: inset 0 0 0 2px #5a3a12, inset 0 -10px 18px #0007, inset 0 8px 12px #ffffff14; background:
+        repeating-linear-gradient(90deg, #0000 0 33px, #2c1608 33px 36px),
+        repeating-linear-gradient(0deg, #ffffff08 0 2px, #0000 2px 7px),
+        repeating-linear-gradient(93deg, #0000 0 11px, #00000014 11px 13px),
+        linear-gradient(180deg, #8a5228, #5e3416); }
+    .chest-base { position: absolute; left: 0; right: 0; bottom: 0; height: 100px; border-radius: 6px 6px 10px 10px; }
+    .chest-lid { position: absolute; left: 0; right: 0; top: 0; height: 70px; border-radius: 70px 70px 6px 6px; transform-origin: 50% 100%; transition: transform .5s cubic-bezier(.3, 1.6, .5, 1); z-index: 2; background:
+        repeating-linear-gradient(90deg, #0000 0 33px, #2c1608 33px 36px),
+        radial-gradient(ellipse at 50% 0%, #ffffff22, #0000 60%),
+        linear-gradient(180deg, #9a5e2e, #6a3a18); }
+    /* Brass straps with rivets, and a glowing keyhole plate. */
+    .chest-base i, .chest-lid i { position: absolute; top: -5px; bottom: -5px; left: 41%; width: 18%; background:
+        radial-gradient(circle, #fff3c4 0 2px, #8a5e1a 3px, #0000 4px) 50% 12px / 100% 26px repeat-y,
+        linear-gradient(90deg, #9a6a1e, #ffe08a 35%, #e2b24a 55%, #8a5e1a); box-shadow: 0 0 6px #0008; }
+    .chest-lid i { border-radius: 40px 40px 0 0; }
+    .chest-base b { position: absolute; top: 12px; left: 50%; width: 30px; height: 36px; margin-left: -15px; border-radius: 6px; z-index: 1; background:
+        radial-gradient(ellipse 4px 7px at 50% 58%, #1a0e02 98%, #0000),
+        radial-gradient(circle at 50% 38%, #1a0e02 4px, #0000 5px),
+        linear-gradient(160deg, #fff0b0, #e2b24a 45%, #8a5e1a); box-shadow: 0 0 14px var(--glow, #ffd36b), inset 0 0 0 2px #8a5e1a; animation: keyhole-glow 1.8s ease-in-out infinite; }
+    @keyframes keyhole-glow { 50% { box-shadow: 0 0 26px var(--glow, #ffd36b), inset 0 0 0 2px #8a5e1a; } }
+    .chest-glow { position: absolute; left: 50%; bottom: 66px; width: 24px; height: 24px; margin-left: -12px; border-radius: 50%; background: var(--glow, #ffd36b); box-shadow: 0 0 70px 36px var(--glow, #ffd36b); opacity: 0; transition: opacity .4s, transform .6s; z-index: 1; }
     .chest.shaking { animation: chest-shake .9s ease-in both; }
     @keyframes chest-shake { 0%, 100% { transform: none; } 10%, 30%, 50%, 70%, 90% { transform: rotate(-4deg) translateY(-2px); } 20%, 40%, 60%, 80% { transform: rotate(4deg) translateY(-4px); } }
     .chest.open .chest-lid { transform: perspective(400px) rotateX(70deg) translateY(-22px); }
@@ -1200,9 +1242,181 @@
         ward: { name: 'Molten Shield', icon: '✹', color: '#ffab6b', cost: 24, cooldown: 9, type: 'absorb', amount: 35, duration: 6, aura: { burn: { dps: 8, duration: .6 }, radius: 3 }, desc: 'Absorbs 35 damage and scorches enemies close to you.' }
       }
     };
-    // Wizards are garden gnomes: stout and round, with a tall pointy hat, a big fluffy beard, a round nose,
-    // rosy cheeks and chunky boots. Each school adds its own flair. Your robe colour is the gnome's tunic.
-    // Optional cosmetics: `skin` (colour overrides and extras from a skin's look), `aura` id and `robe` dye finish.
+    // ---------- Hand-painted textures (drawn on canvases, so no image files are needed) ----------
+    const randomBetween = (min, max) => min + Math.random() * (max - min);
+    // Grainy per-pixel variation so surfaces don't look flat.
+    function addGrain(context, size, amount) {
+      const image = context.getImageData(0, 0, size, size), data = image.data;
+      for (let index = 0; index < data.length; index += 4) {
+        const grain = (Math.random() - .5) * amount;
+        data[index] += grain; data[index + 1] += grain; data[index + 2] += grain;
+      }
+      context.putImageData(image, 0, 0);
+    }
+    function canvasTexture(textureCanvas, color = true) {
+      const texture = new THREE.CanvasTexture(textureCanvas);
+      if (color) texture.encoding = THREE.sRGBEncoding;
+      texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+      texture.anisotropy = 8;
+      return texture;
+    }
+    // Traces a rounded block (bricks and flagstones).
+    function roundedBlock(context, x, y, width, height, radius) {
+      context.beginPath();
+      context.moveTo(x + radius, y);
+      context.arcTo(x + width, y, x + width, y + height, radius);
+      context.arcTo(x + width, y + height, x, y + height, radius);
+      context.arcTo(x, y + height, x, y, radius);
+      context.arcTo(x, y, x + width, y, radius);
+      context.closePath();
+    }
+    // A wandering hairline crack, drawn on both canvases.
+    function paintCrack(color, bump, x, top, bottom, wander, colorShade) {
+      color.strokeStyle = colorShade; bump.strokeStyle = '#202020'; color.lineWidth = bump.lineWidth = 1.5;
+      color.beginPath(); bump.beginPath(); color.moveTo(x, top); bump.moveTo(x, top);
+      let y = top;
+      while (y < bottom) { x += randomBetween(-wander, wander); y += randomBetween(5, 12); color.lineTo(x, y); bump.lineTo(x, y); }
+      color.stroke(); bump.stroke();
+    }
+    // Maze walls: irregular jewel-toned bricks with deep mortar, chips, cracks, grime and moss at the base.
+    // One copy of the texture covers the full wall height, so the moss always sits on the ground.
+    function createStoneTextures() {
+      const size = 512, rows = 8, rowHeight = size / rows;
+      const colorCanvas = document.createElement('canvas'), bumpCanvas = document.createElement('canvas');
+      colorCanvas.width = colorCanvas.height = bumpCanvas.width = bumpCanvas.height = size;
+      const color = colorCanvas.getContext('2d'), bump = bumpCanvas.getContext('2d');
+      const stoneColors = ['#5d4a9a', '#6b56b0', '#4f68b4', '#7a55a8', '#4f86a8', '#5a5aa6'];
+      color.fillStyle = '#251b4c';
+      color.fillRect(0, 0, size, size);
+      bump.fillStyle = '#000';
+      bump.fillRect(0, 0, size, size);
+      for (let row = 0; row < rows; row++) {
+        // Bricks of different lengths, wrapping around the edge so the texture tiles sideways.
+        let x = randomBetween(0, 80);
+        const startX = x;
+        while (x < startX + size) {
+          const width = Math.min(randomBetween(70, 135), startX + size - x);
+          if (width < 30) break;
+          const y = row * rowHeight, inset = randomBetween(2.5, 4.5);
+          const base = new THREE.Color(stoneColors[Math.floor(Math.random() * stoneColors.length)]).offsetHSL(randomBetween(-.02, .02), randomBetween(-.05, .05), randomBetween(-.06, .05));
+          const light = `#${base.clone().offsetHSL(0, 0, .07).getHexString()}`, dark = `#${base.clone().offsetHSL(0, 0, -.07).getHexString()}`;
+          const height = Math.floor(randomBetween(170, 220));
+          const chips = [0, 1, 2].filter(() => Math.random() < .55).map(() => [Math.random() < .5 ? randomBetween(0, 10) : -randomBetween(0, 10), Math.random(), randomBetween(3, 7)]);
+          const crackAt = Math.random() < .3 ? randomBetween(.15, .85) : null;
+          for (const shift of [0, -size]) {
+            const left = x + shift + inset, top = y + inset, w = width - inset * 2, h = rowHeight - inset * 2;
+            // Colour: a soft top-lit gradient on each brick, with a pale top edge.
+            const gradient = color.createLinearGradient(0, top, 0, top + h);
+            gradient.addColorStop(0, light);
+            gradient.addColorStop(1, dark);
+            color.fillStyle = gradient;
+            roundedBlock(color, left, top, w, h, 6);
+            color.fill();
+            color.strokeStyle = '#ffffff22';
+            color.lineWidth = 2;
+            color.beginPath(); color.moveTo(left + 5, top + 2); color.lineTo(left + w - 5, top + 2); color.stroke();
+            // Bump: raised brick faces.
+            bump.fillStyle = `rgb(${height},${height},${height})`;
+            roundedBlock(bump, left, top, w, h, 7);
+            bump.fill();
+            // Chips knocked out of the edges.
+            for (const [edge, along, radius] of chips) {
+              const cx = edge >= 0 ? left + edge : left + w + edge, cy = top + along * h;
+              color.fillStyle = '#2a2050'; color.beginPath(); color.arc(cx, cy, radius, 0, Math.PI * 2); color.fill();
+              bump.fillStyle = '#303030'; bump.beginPath(); bump.arc(cx, cy, radius, 0, Math.PI * 2); bump.fill();
+            }
+            if (crackAt !== null) paintCrack(color, bump, left + crackAt * w, top + 3, top + h - 4, 6, '#1e1640');
+          }
+          x += width;
+        }
+      }
+      // Grime rising from the floor, then moss clinging to the lowest bricks.
+      const grime = color.createLinearGradient(0, size, 0, size * .62);
+      grime.addColorStop(0, '#120c24cc'); grime.addColorStop(1, '#120c2400');
+      color.fillStyle = grime;
+      color.fillRect(0, size * .62, size, size * .38);
+      for (let index = 0; index < 900; index++) {
+        const x = Math.random() * size, depth = Math.pow(Math.random(), 2.2), y = size - depth * size * .3;
+        const radius = randomBetween(1.5, 5) * (1 - depth * .6);
+        color.fillStyle = Math.random() < .5 ? '#3f8a4fcc' : '#5aa860aa';
+        color.beginPath(); color.arc(x, y, radius, 0, Math.PI * 2); color.fill();
+        bump.fillStyle = '#d8d8d8'; bump.beginPath(); bump.arc(x, y, radius, 0, Math.PI * 2); bump.fill();
+      }
+      // Damp streaks running down from the top.
+      for (let index = 0; index < 10; index++) {
+        const x = Math.random() * size, length = randomBetween(60, 220), streak = color.createLinearGradient(0, 0, 0, length);
+        streak.addColorStop(0, '#0c081a55'); streak.addColorStop(1, '#0c081a00');
+        color.fillStyle = streak;
+        color.fillRect(x, 0, randomBetween(4, 12), length);
+      }
+      addGrain(color, size, 22);
+      addGrain(bump, size, 36);
+      return { map: canvasTexture(colorCanvas), bump: canvasTexture(bumpCanvas, false) };
+    }
+    // Floor: worn flagstones with dark grout and moss in the cracks. One copy covers one maze cell.
+    function createFloorTextures() {
+      const size = 512;
+      const colorCanvas = document.createElement('canvas'), bumpCanvas = document.createElement('canvas');
+      colorCanvas.width = colorCanvas.height = bumpCanvas.width = bumpCanvas.height = size;
+      const color = colorCanvas.getContext('2d'), bump = bumpCanvas.getContext('2d');
+      color.fillStyle = '#2a2436';
+      color.fillRect(0, 0, size, size);
+      bump.fillStyle = '#000';
+      bump.fillRect(0, 0, size, size);
+      // Rows of slabs; row heights add up to the texture size so it tiles.
+      const heights = [];
+      let total = 0;
+      while (total < size) {
+        const h = randomBetween(90, 150);
+        if (size - total - h < 70) { heights.push(size - total); break; }
+        heights.push(h);
+        total += h;
+      }
+      let y = 0;
+      for (const rowHeight of heights) {
+        let x = randomBetween(0, 120);
+        const startX = x;
+        while (x < startX + size) {
+          const width = Math.min(randomBetween(100, 210), startX + size - x);
+          if (width < 40) break;
+          const shade = randomBetween(125, 165), tint = randomBetween(-8, 8), height = Math.floor(randomBetween(165, 215));
+          const pad = [randomBetween(3, 6), randomBetween(3, 6), randomBetween(6, 11), randomBetween(6, 11)];
+          const marks = [0, 1, 2, 3].map(() => [Math.random() < .5 ? '#00000014' : '#ffffff12', Math.random(), Math.random(), randomBetween(6, 22), randomBetween(3, 10), Math.random() * Math.PI]);
+          const crackAt = Math.random() < .25 ? randomBetween(.15, .85) : null;
+          for (const shift of [0, -size]) {
+            const left = x + shift + pad[0], top = y + pad[1], w = width - pad[2], h = rowHeight - pad[3];
+            const gradient = color.createRadialGradient(left + w * .4, top + h * .35, 4, left + w / 2, top + h / 2, Math.max(w, h) * .75);
+            gradient.addColorStop(0, `rgb(${shade + 12 + tint},${shade + 12},${shade + 16 - tint})`);
+            gradient.addColorStop(1, `rgb(${shade - 26 + tint},${shade - 26},${shade - 20 - tint})`);
+            color.fillStyle = gradient;
+            roundedBlock(color, left, top, w, h, 10);
+            color.fill();
+            bump.fillStyle = `rgb(${height},${height},${height})`;
+            roundedBlock(bump, left, top, w, h, 12);
+            bump.fill();
+            // Scuffs and worn patches.
+            for (const [shadeMark, mx, my, rx, ry, angle] of marks) {
+              color.fillStyle = shadeMark;
+              color.beginPath(); color.ellipse(left + mx * w, top + my * h, rx, ry, angle, 0, Math.PI * 2); color.fill();
+            }
+            if (crackAt !== null) paintCrack(color, bump, left + crackAt * w, top + 4, top + h - 6, 9, '#2b2636');
+          }
+          x += width;
+        }
+        y += rowHeight;
+      }
+      // Moss growing in the grout lines.
+      const grout = bump.getImageData(0, 0, size, size).data;
+      for (let index = 0; index < 1600; index++) {
+        const x = Math.floor(Math.random() * size), mossY = Math.floor(Math.random() * size);
+        if (grout[(mossY * size + x) * 4] > 60) continue;
+        color.fillStyle = Math.random() < .5 ? '#4f9a5a99' : '#6ab86a77';
+        color.beginPath(); color.arc(x, mossY, randomBetween(1.5, 4), 0, Math.PI * 2); color.fill();
+      }
+      addGrain(color, size, 18);
+      addGrain(bump, size, 30);
+      return { map: canvasTexture(colorCanvas), bump: canvasTexture(bumpCanvas, false) };
+    }
     // A fine woven-fabric bump texture shared by every gnome's robe, hat and trousers (made once, on first use).
     let clothBumpTexture = null;
     function clothBump() {
@@ -1232,6 +1446,91 @@
       clothBumpTexture.repeat.set(3, 2);
       return clothBumpTexture;
     }
+    // Grey-scale bump texture painted once and shared by every gnome (cached by name).
+    const bumpCache = {};
+    function paintedBump(name, size, repeatX, repeatY, paint) {
+      if (bumpCache[name]) return bumpCache[name];
+      const bumpCanvas = document.createElement('canvas');
+      bumpCanvas.width = bumpCanvas.height = size;
+      const context = bumpCanvas.getContext('2d');
+      context.fillStyle = '#808080';
+      context.fillRect(0, 0, size, size);
+      paint(context, size);
+      const texture = canvasTexture(bumpCanvas, false);
+      texture.repeat.set(repeatX, repeatY);
+      return bumpCache[name] = texture;
+    }
+    // Beards: long wavy strands running down.
+    const hairBump = () => paintedBump('hair', 256, 4, 1, (context, size) => {
+      for (let strand = 0; strand < 220; strand++) {
+        let x = Math.random() * size;
+        const shade = Math.floor(randomBetween(40, 230));
+        context.strokeStyle = `rgb(${shade},${shade},${shade})`;
+        context.lineWidth = randomBetween(1, 3);
+        context.beginPath();
+        context.moveTo(x, 0);
+        for (let y = 0; y <= size; y += 16) { x += Math.sin(y / 30 + strand) * 2; context.lineTo(x, y); }
+        context.stroke();
+      }
+    });
+    // Staffs and wooden trinkets: wavy grain with the odd knot.
+    const woodBump = () => paintedBump('wood', 256, 1, 2, (context, size) => {
+      for (let line = 0; line < 60; line++) {
+        let x = Math.random() * size;
+        const shade = Math.floor(randomBetween(60, 200));
+        context.strokeStyle = `rgb(${shade},${shade},${shade})`;
+        context.lineWidth = randomBetween(1, 4);
+        context.beginPath();
+        context.moveTo(x, 0);
+        for (let y = 0; y <= size; y += 8) { x += Math.sin(y / 40 + line) * 1.5; context.lineTo(x, y); }
+        context.stroke();
+      }
+      for (let knot = 0; knot < 3; knot++) {
+        context.strokeStyle = '#303030';
+        context.lineWidth = 2;
+        context.beginPath(); context.ellipse(Math.random() * size, Math.random() * size, 5, 12, 0, 0, Math.PI * 2); context.stroke();
+      }
+    });
+    // Belts, boots and pouches: pebbled leather.
+    const leatherBump = () => paintedBump('leather', 128, 2, 2, (context, size) => {
+      for (let spot = 0; spot < 900; spot++) {
+        const shade = Math.floor(randomBetween(80, 190));
+        context.fillStyle = `rgb(${shade},${shade},${shade})`;
+        context.beginPath(); context.arc(Math.random() * size, Math.random() * size, randomBetween(1, 3), 0, Math.PI * 2); context.fill();
+      }
+    });
+    // A soft "studio" reflection (warm light above, violet surroundings, a couple of bright window glints)
+    // so metal, gems, crystals and ice catch real highlights. Works in every view (menu, collection and match).
+    let studioEnvironment = null;
+    function studioEnvMap() {
+      if (studioEnvironment) return studioEnvironment;
+      const faces = [0, 1, 2, 3, 4, 5].map(face => {
+        const faceCanvas = document.createElement('canvas');
+        faceCanvas.width = faceCanvas.height = 128;
+        const context = faceCanvas.getContext('2d');
+        if (face === 2) { context.fillStyle = '#fff1d8'; context.fillRect(0, 0, 128, 128); }            // +y: bright warm sky
+        else if (face === 3) { context.fillStyle = '#1a1230'; context.fillRect(0, 0, 128, 128); }       // -y: dark floor
+        else {
+          const gradient = context.createLinearGradient(0, 0, 0, 128);
+          gradient.addColorStop(0, '#d8c8ff'); gradient.addColorStop(.5, '#6a50a8'); gradient.addColorStop(1, '#22183e');
+          context.fillStyle = gradient;
+          context.fillRect(0, 0, 128, 128);
+          // Soft light panels for crisp glints.
+          const glint = context.createRadialGradient(48 + face * 6, 36, 2, 48 + face * 6, 36, 26);
+          glint.addColorStop(0, face % 2 ? '#fff0d0' : '#d8f8ff'); glint.addColorStop(1, '#ffffff00');
+          context.fillStyle = glint;
+          context.fillRect(0, 0, 128, 128);
+        }
+        return faceCanvas;
+      });
+      studioEnvironment = new THREE.CubeTexture(faces);
+      studioEnvironment.encoding = THREE.sRGBEncoding;
+      studioEnvironment.needsUpdate = true;
+      return studioEnvironment;
+    }
+    // Wizards are garden gnomes: stout and round, with a tall pointy hat, a big fluffy beard, a round nose,
+    // rosy cheeks and chunky boots. Each school adds its own flair. Your robe colour is the gnome's tunic.
+    // Optional cosmetics: `skin` (colour overrides and extras from a skin's look), `aura` id and `robe` dye finish.
     window.buildWizardModel = ({ model = 'grovewarden', color = '#327c58', crystalColor = '#87d2bf', skin = {}, aura = null, robe = {} }) => {
       const group = new THREE.Group();
       const flickers = [], spinners = [], pulses = [], sways = [], bobbers = [], fallers = [], shimmers = [], wings = [];
@@ -1260,10 +1559,10 @@
       const hatMaterial = std(hatColor, { roughness: .6, ...cloth, ...(skin.hatGlow ? { emissive: skin.hatGlow, emissiveIntensity: .35 } : {}) });
       const trouserMaterial = std(trouserColor, { roughness: .85, ...cloth });
       const goldMaterial = std(skin.metal || '#d6b86a', { metalness: .6, roughness: .32 });
-      const leatherMaterial = std('#5a3b26', { roughness: .8 });
-      const skinMaterial = std('#f0c8a4', { roughness: .8 });
+      const leatherMaterial = std('#5a3b26', { roughness: .75, bumpMap: leatherBump(), bumpScale: .01 });
+      const skinMaterial = std('#f0c8a4', { roughness: .62 });
       const beardColor = skin.beard || shape.beard;
-      const beardMaterial = std(beardColor, { roughness: .95, ...(skin.beardGlow ? { emissive: beardColor, emissiveIntensity: .55 } : {}) });
+      const beardMaterial = std(beardColor, { roughness: .9, bumpMap: hairBump(), bumpScale: .025, ...(skin.beardGlow ? { emissive: beardColor, emissiveIntensity: .55 } : {}) });
       if (skin.beardGlow) pulses.push(beardMaterial);
       const eyeMaterial = glowMaterial(glow, 2.4);
       const add = (mesh, x = 0, y = 0, z = 0, parent = group) => { mesh.position.set(x, y, z); parent.add(mesh); return mesh; };
@@ -1332,7 +1631,7 @@
       [limb([-.42 * width, 1.12, 0], [-.58 * width, .82, -.08], .12, .15, tunicMaterial), ball(.11, skinMaterial, -.6 * width, .78, -.1)].forEach(part => shoulder.attach(part));
       // Head: round face, big round nose, rosy cheeks, glowing eyes, bushy brows.
       ball(.3, skinMaterial, 0, 1.45, 0);
-      ball(.11, std('#e9a07e', { roughness: .6 }), 0, 1.4, -.3);
+      ball(.11, std('#e9a07e', { roughness: .42 }), 0, 1.4, -.3);
       for (const side of [-1, 1]) {
         ball(.07, std('#f2958f', { roughness: .8 }), side * .17, 1.37, -.22, [1, .7, .5]);
         ball(.045, eyeMaterial, side * .11, 1.52, -.26);
@@ -1389,7 +1688,7 @@
       if (has('magicRing')) spinners.push(ring(1.0, .012, .7, std(glow, { emissive: glow, emissiveIntensity: 1.2, transparent: true, opacity: .35 })));
 
       const crystal = mesh(new THREE.OctahedronGeometry(.2, 0), std(crystalColor, { emissive: crystalColor, emissiveIntensity: .9, roughness: .3 }));
-      let staffMaterial = std('#987b50', { roughness: .8 });
+      let staffMaterial = std('#987b50', { roughness: .75, bumpMap: woodBump(), bumpScale: .02 });
 
       if (model === 'stormcaller') {
         // ---- Frost gnome. Always: towering brimmed hat and a plain silver staff. ----
@@ -1477,7 +1776,7 @@
         const big = has('bigFlame');
         const hatFlames = big ? [[0, .9, flamePalette[0], .17], [.1, .62, flamePalette[1], .14], [-.1, .66, flamePalette[2], .14], [.04, .45, '#fff1b0', .1], [-.14, .4, flamePalette[1], .09]] : [[0, .32, flamePalette[0], .08], [.05, .22, flamePalette[1], .06]];
         for (const [x, height, flameColor, radius] of hatFlames) addFlame(x, tipTop - .08, 0, radius, height, flameColor, hatTip);
-        staffMaterial = std('#3a2a22', { roughness: .85 });
+        staffMaterial = std('#3a2a22', { roughness: .8, bumpMap: woodBump(), bumpScale: .02 });
         add(mesh(new THREE.CylinderGeometry(.14, .08, .14, 20, 1, true), std('#6b5a48', { metalness: .4, side: THREE.DoubleSide })), staffX + .01, 2.05, -.13);
         crystal.geometry = new THREE.SphereGeometry(.13, 16, 12);
         crystal.material = std(flamePalette[2], { emissive: flamePalette[1], emissiveIntensity: 2 });
@@ -1568,7 +1867,7 @@
         // ---- Garden gnome druid. Always: earthy brown hat and a crooked wooden staff with a glowing seed. ----
         const leafMaterial = std(skin.leaf || '#5f9b4c', { roughness: .6, side: THREE.DoubleSide, ...(skin.leafGlow ? { emissive: skin.leaf, emissiveIntensity: .45 } : {}) });
         const mossMaterial = std(skin.moss || '#4f8a3c', { roughness: .9 });
-        const woodMaterial = std('#7a5d3a', { roughness: .85 });
+        const woodMaterial = std('#7a5d3a', { roughness: .8, bumpMap: woodBump(), bumpScale: .02 });
         const leaf = (x, y, z, size = .08, parent = group, material = leafMaterial) => ball(size, material, x, y, z, [1.4, .3, .8], parent);
         add(mesh(new THREE.TorusGeometry(.15, .03, 12, 32, Math.PI * 1.4), woodMaterial), staffX + .01, 2.18, -.13).rotation.z = -.4;
         pulses.push(crystal.material);
@@ -1779,6 +2078,15 @@
           else part.rotation.y = Math.sin(time * 1.8 + index) * .12;
         });
       };
+      // Reflections: shiny metals, gems, crystals and ice catch highlights; cloth and skin get only a faint sheen.
+      const environment = studioEnvMap();
+      group.traverse(part => {
+        const material = part.isMesh && part.material;
+        if (!material || !material.isMeshStandardMaterial || material.envMap) return;
+        material.envMap = environment;
+        material.envMapIntensity = material.metalness >= .3 ? 1.25 : material.roughness <= .4 ? .7 : .22;
+        material.needsUpdate = true;
+      });
       return group;
     };
   </script>
@@ -1803,181 +2111,6 @@
       renderer.toneMappingExposure = highGraphics ? .8 : .86;
       if (!highGraphics) renderer.setPixelRatio(1);
 
-      // ---------- Hand-painted textures (drawn on canvases, so no image files are needed) ----------
-      const randomBetween = (min, max) => min + Math.random() * (max - min);
-      // Grainy per-pixel variation so surfaces don't look flat.
-      function addGrain(context, size, amount) {
-        const image = context.getImageData(0, 0, size, size), data = image.data;
-        for (let index = 0; index < data.length; index += 4) {
-          const grain = (Math.random() - .5) * amount;
-          data[index] += grain; data[index + 1] += grain; data[index + 2] += grain;
-        }
-        context.putImageData(image, 0, 0);
-      }
-      function canvasTexture(textureCanvas, color = true) {
-        const texture = new THREE.CanvasTexture(textureCanvas);
-        if (color) texture.encoding = THREE.sRGBEncoding;
-        texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-        texture.anisotropy = highGraphics ? 8 : 4;
-        return texture;
-      }
-      // Traces a rounded block (bricks and flagstones).
-      function roundedBlock(context, x, y, width, height, radius) {
-        context.beginPath();
-        context.moveTo(x + radius, y);
-        context.arcTo(x + width, y, x + width, y + height, radius);
-        context.arcTo(x + width, y + height, x, y + height, radius);
-        context.arcTo(x, y + height, x, y, radius);
-        context.arcTo(x, y, x + width, y, radius);
-        context.closePath();
-      }
-      // A wandering hairline crack, drawn on both canvases.
-      function paintCrack(color, bump, x, top, bottom, wander, colorShade) {
-        color.strokeStyle = colorShade; bump.strokeStyle = '#202020'; color.lineWidth = bump.lineWidth = 1.5;
-        color.beginPath(); bump.beginPath(); color.moveTo(x, top); bump.moveTo(x, top);
-        let y = top;
-        while (y < bottom) { x += randomBetween(-wander, wander); y += randomBetween(5, 12); color.lineTo(x, y); bump.lineTo(x, y); }
-        color.stroke(); bump.stroke();
-      }
-      // Maze walls: irregular jewel-toned bricks with deep mortar, chips, cracks, grime and moss at the base.
-      // One copy of the texture covers the full wall height, so the moss always sits on the ground.
-      function createStoneTextures() {
-        const size = 512, rows = 8, rowHeight = size / rows;
-        const colorCanvas = document.createElement('canvas'), bumpCanvas = document.createElement('canvas');
-        colorCanvas.width = colorCanvas.height = bumpCanvas.width = bumpCanvas.height = size;
-        const color = colorCanvas.getContext('2d'), bump = bumpCanvas.getContext('2d');
-        const stoneColors = ['#5d4a9a', '#6b56b0', '#4f68b4', '#7a55a8', '#4f86a8', '#5a5aa6'];
-        color.fillStyle = '#251b4c';
-        color.fillRect(0, 0, size, size);
-        bump.fillStyle = '#000';
-        bump.fillRect(0, 0, size, size);
-        for (let row = 0; row < rows; row++) {
-          // Bricks of different lengths, wrapping around the edge so the texture tiles sideways.
-          let x = randomBetween(0, 80);
-          const startX = x;
-          while (x < startX + size) {
-            const width = Math.min(randomBetween(70, 135), startX + size - x);
-            if (width < 30) break;
-            const y = row * rowHeight, inset = randomBetween(2.5, 4.5);
-            const base = new THREE.Color(stoneColors[Math.floor(Math.random() * stoneColors.length)]).offsetHSL(randomBetween(-.02, .02), randomBetween(-.05, .05), randomBetween(-.06, .05));
-            const light = `#${base.clone().offsetHSL(0, 0, .07).getHexString()}`, dark = `#${base.clone().offsetHSL(0, 0, -.07).getHexString()}`;
-            const height = Math.floor(randomBetween(170, 220));
-            const chips = [0, 1, 2].filter(() => Math.random() < .55).map(() => [Math.random() < .5 ? randomBetween(0, 10) : -randomBetween(0, 10), Math.random(), randomBetween(3, 7)]);
-            const crackAt = Math.random() < .3 ? randomBetween(.15, .85) : null;
-            for (const shift of [0, -size]) {
-              const left = x + shift + inset, top = y + inset, w = width - inset * 2, h = rowHeight - inset * 2;
-              // Colour: a soft top-lit gradient on each brick, with a pale top edge.
-              const gradient = color.createLinearGradient(0, top, 0, top + h);
-              gradient.addColorStop(0, light);
-              gradient.addColorStop(1, dark);
-              color.fillStyle = gradient;
-              roundedBlock(color, left, top, w, h, 6);
-              color.fill();
-              color.strokeStyle = '#ffffff22';
-              color.lineWidth = 2;
-              color.beginPath(); color.moveTo(left + 5, top + 2); color.lineTo(left + w - 5, top + 2); color.stroke();
-              // Bump: raised brick faces.
-              bump.fillStyle = `rgb(${height},${height},${height})`;
-              roundedBlock(bump, left, top, w, h, 7);
-              bump.fill();
-              // Chips knocked out of the edges.
-              for (const [edge, along, radius] of chips) {
-                const cx = edge >= 0 ? left + edge : left + w + edge, cy = top + along * h;
-                color.fillStyle = '#2a2050'; color.beginPath(); color.arc(cx, cy, radius, 0, Math.PI * 2); color.fill();
-                bump.fillStyle = '#303030'; bump.beginPath(); bump.arc(cx, cy, radius, 0, Math.PI * 2); bump.fill();
-              }
-              if (crackAt !== null) paintCrack(color, bump, left + crackAt * w, top + 3, top + h - 4, 6, '#1e1640');
-            }
-            x += width;
-          }
-        }
-        // Grime rising from the floor, then moss clinging to the lowest bricks.
-        const grime = color.createLinearGradient(0, size, 0, size * .62);
-        grime.addColorStop(0, '#120c24cc'); grime.addColorStop(1, '#120c2400');
-        color.fillStyle = grime;
-        color.fillRect(0, size * .62, size, size * .38);
-        for (let index = 0; index < 900; index++) {
-          const x = Math.random() * size, depth = Math.pow(Math.random(), 2.2), y = size - depth * size * .3;
-          const radius = randomBetween(1.5, 5) * (1 - depth * .6);
-          color.fillStyle = Math.random() < .5 ? '#3f8a4fcc' : '#5aa860aa';
-          color.beginPath(); color.arc(x, y, radius, 0, Math.PI * 2); color.fill();
-          bump.fillStyle = '#d8d8d8'; bump.beginPath(); bump.arc(x, y, radius, 0, Math.PI * 2); bump.fill();
-        }
-        // Damp streaks running down from the top.
-        for (let index = 0; index < 10; index++) {
-          const x = Math.random() * size, length = randomBetween(60, 220), streak = color.createLinearGradient(0, 0, 0, length);
-          streak.addColorStop(0, '#0c081a55'); streak.addColorStop(1, '#0c081a00');
-          color.fillStyle = streak;
-          color.fillRect(x, 0, randomBetween(4, 12), length);
-        }
-        addGrain(color, size, 22);
-        addGrain(bump, size, 36);
-        return { map: canvasTexture(colorCanvas), bump: canvasTexture(bumpCanvas, false) };
-      }
-      // Floor: worn flagstones with dark grout and moss in the cracks. One copy covers one maze cell.
-      function createFloorTextures() {
-        const size = 512;
-        const colorCanvas = document.createElement('canvas'), bumpCanvas = document.createElement('canvas');
-        colorCanvas.width = colorCanvas.height = bumpCanvas.width = bumpCanvas.height = size;
-        const color = colorCanvas.getContext('2d'), bump = bumpCanvas.getContext('2d');
-        color.fillStyle = '#2a2436';
-        color.fillRect(0, 0, size, size);
-        bump.fillStyle = '#000';
-        bump.fillRect(0, 0, size, size);
-        // Rows of slabs; row heights add up to the texture size so it tiles.
-        const heights = [];
-        let total = 0;
-        while (total < size) {
-          const h = randomBetween(90, 150);
-          if (size - total - h < 70) { heights.push(size - total); break; }
-          heights.push(h);
-          total += h;
-        }
-        let y = 0;
-        for (const rowHeight of heights) {
-          let x = randomBetween(0, 120);
-          const startX = x;
-          while (x < startX + size) {
-            const width = Math.min(randomBetween(100, 210), startX + size - x);
-            if (width < 40) break;
-            const shade = randomBetween(125, 165), tint = randomBetween(-8, 8), height = Math.floor(randomBetween(165, 215));
-            const pad = [randomBetween(3, 6), randomBetween(3, 6), randomBetween(6, 11), randomBetween(6, 11)];
-            const marks = [0, 1, 2, 3].map(() => [Math.random() < .5 ? '#00000014' : '#ffffff12', Math.random(), Math.random(), randomBetween(6, 22), randomBetween(3, 10), Math.random() * Math.PI]);
-            const crackAt = Math.random() < .25 ? randomBetween(.15, .85) : null;
-            for (const shift of [0, -size]) {
-              const left = x + shift + pad[0], top = y + pad[1], w = width - pad[2], h = rowHeight - pad[3];
-              const gradient = color.createRadialGradient(left + w * .4, top + h * .35, 4, left + w / 2, top + h / 2, Math.max(w, h) * .75);
-              gradient.addColorStop(0, `rgb(${shade + 12 + tint},${shade + 12},${shade + 16 - tint})`);
-              gradient.addColorStop(1, `rgb(${shade - 26 + tint},${shade - 26},${shade - 20 - tint})`);
-              color.fillStyle = gradient;
-              roundedBlock(color, left, top, w, h, 10);
-              color.fill();
-              bump.fillStyle = `rgb(${height},${height},${height})`;
-              roundedBlock(bump, left, top, w, h, 12);
-              bump.fill();
-              // Scuffs and worn patches.
-              for (const [shadeMark, mx, my, rx, ry, angle] of marks) {
-                color.fillStyle = shadeMark;
-                color.beginPath(); color.ellipse(left + mx * w, top + my * h, rx, ry, angle, 0, Math.PI * 2); color.fill();
-              }
-              if (crackAt !== null) paintCrack(color, bump, left + crackAt * w, top + 4, top + h - 6, 9, '#2b2636');
-            }
-            x += width;
-          }
-          y += rowHeight;
-        }
-        // Moss growing in the grout lines.
-        const grout = bump.getImageData(0, 0, size, size).data;
-        for (let index = 0; index < 1600; index++) {
-          const x = Math.floor(Math.random() * size), mossY = Math.floor(Math.random() * size);
-          if (grout[(mossY * size + x) * 4] > 60) continue;
-          color.fillStyle = Math.random() < .5 ? '#4f9a5a99' : '#6ab86a77';
-          color.beginPath(); color.arc(x, mossY, randomBetween(1.5, 4), 0, Math.PI * 2); color.fill();
-        }
-        addGrain(color, size, 18);
-        addGrain(bump, size, 30);
-        return { map: canvasTexture(colorCanvas), bump: canvasTexture(bumpCanvas, false) };
-      }
       const stoneTextures = createStoneTextures();
       const floorTextures = createFloorTextures();
       const stoneTexture = stoneTextures.map;
@@ -4799,7 +4932,11 @@
       let composer = null;
       if (highGraphics && THREE.EffectComposer && THREE.RenderPass && THREE.UnrealBloomPass && THREE.ShaderPass && THREE.GammaCorrectionShader) {
         try {
-          composer = new THREE.EffectComposer(renderer);
+          // A multisampled target keeps edges smooth (the glow pass would otherwise lose anti-aliasing). Needs WebGL 2.
+          const smooth = renderer.capabilities.isWebGL2 && THREE.WebGLMultisampleRenderTarget;
+          const target = smooth ? new THREE.WebGLMultisampleRenderTarget(1, 1, { format: THREE.RGBAFormat }) : undefined;
+          if (target) target.samples = 4;
+          composer = new THREE.EffectComposer(renderer, target);
           composer.addPass(new THREE.RenderPass(scene, camera));
           composer.addPass(new THREE.UnrealBloomPass(new THREE.Vector2(512, 512), .38, .3, .95));
           composer.addPass(new THREE.ShaderPass(THREE.GammaCorrectionShader));
@@ -5563,23 +5700,123 @@
       previewRenderer.outputEncoding = THREE.sRGBEncoding;
       previewRenderer.toneMapping = THREE.ACESFilmicToneMapping;
       previewRenderer.toneMappingExposure = .95;
+      previewRenderer.shadowMap.enabled = true;
+      previewRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
       const previewScene = new THREE.Scene();
-      const previewCamera = new THREE.PerspectiveCamera(32, .85, .1, 50);
+      const previewCamera = new THREE.PerspectiveCamera(32, .85, .1, 60);
       // Framed to fit the tallest gnome (the Stormcaller's hat and storm cloud).
       previewCamera.position.set(0, 2.65, 10.2);
       previewCamera.lookAt(0, 2.2, 0);
-      previewScene.add(new THREE.HemisphereLight('#e8dcff', '#2a1d4a', 1.0));
-      const keyLight = new THREE.DirectionalLight('#f3dca8', 1.2);
-      keyLight.position.set(3, 5, 4);
-      const rimLight = new THREE.DirectionalLight('#ff7ad9', .9);
+      // Backdrop: a violet glow behind the gnome that fades into the panel colour at the edges, so the
+      // canvas blends into the menu card. The collection's stage has its own slightly brighter glow.
+      function stageBackdrop(center, edge) {
+        const backdropCanvas = document.createElement('canvas');
+        backdropCanvas.width = backdropCanvas.height = 512;
+        const context = backdropCanvas.getContext('2d'), gradient = context.createRadialGradient(256, 200, 20, 256, 256, 300);
+        gradient.addColorStop(0, center); gradient.addColorStop(1, edge);
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, 512, 512);
+        addGrain(context, 512, 6);
+        const texture = new THREE.CanvasTexture(backdropCanvas);
+        texture.encoding = THREE.sRGBEncoding;
+        return texture;
+      }
+      const menuBackdrop = stageBackdrop('#34245e', '#171124'), collectionBackdrop = stageBackdrop('#3a2866', '#120d1e');
+      previewScene.background = menuBackdrop;
+      previewScene.add(new THREE.HemisphereLight('#e8dcff', '#2a1d4a', .8));
+      const keyLight = new THREE.DirectionalLight('#f3dca8', 1.35);
+      keyLight.position.set(3, 6, 4);
+      keyLight.castShadow = true;
+      keyLight.shadow.mapSize.set(1024, 1024);
+      Object.assign(keyLight.shadow.camera, { left: -2.5, right: 2.5, top: 4.5, bottom: -1, near: 1, far: 16 });
+      keyLight.shadow.bias = -.0008;
+      keyLight.shadow.radius = 4;
+      const rimLight = new THREE.DirectionalLight('#ff7ad9', 1.0);
       rimLight.position.set(-4, 3, -3);
-      previewScene.add(keyLight, rimLight);
-      const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.3, .22, 32), new THREE.MeshStandardMaterial({ color: '#3d2d70', roughness: .8 }));
-      pedestal.position.y = -.11;
-      const pedestalRing = new THREE.Mesh(new THREE.TorusGeometry(1.05, .03, 8, 48), new THREE.MeshStandardMaterial({ color: '#87d2bf', emissive: '#286b61', emissiveIntensity: 1.2 }));
+      const fillLight = new THREE.PointLight('#5ef0ff', .8, 6);
+      fillLight.position.set(0, .5, 1.6);
+      previewScene.add(keyLight, rimLight, fillLight);
+      // The stone dais: brick sides, a flagstone top, a carved rim and a slowly turning ring of glowing runes.
+      const stageStone = createStoneTextures(), stageFloor = createFloorTextures();
+      stageStone.map.repeat.set(4, .3); stageStone.bump.repeat.set(4, .3);
+      const daisSide = new THREE.MeshStandardMaterial({ color: '#c8b8ff', map: stageStone.map, bumpMap: stageStone.bump, bumpScale: .03, roughness: .9 });
+      const daisTop = new THREE.MeshStandardMaterial({ color: '#8f7ce0', map: stageFloor.map, bumpMap: stageFloor.bump, bumpScale: .03, roughness: .85 });
+      const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.38, .34, 48), [daisSide, daisTop, daisSide]);
+      pedestal.position.y = -.17;
+      pedestal.receiveShadow = true;
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(1.2, .045, 8, 64), new THREE.MeshStandardMaterial({ color: '#544883', roughness: .7 }));
+      rim.rotation.x = -Math.PI / 2;
+      const pedestalRing = new THREE.Mesh(new THREE.TorusGeometry(1.02, .022, 8, 64), new THREE.MeshStandardMaterial({ color: '#87d2bf', emissive: '#4fe0c8', emissiveIntensity: 1.6 }));
       pedestalRing.rotation.x = -Math.PI / 2;
-      pedestalRing.position.y = .01;
-      previewScene.add(pedestal, pedestalRing);
+      pedestalRing.position.y = .012;
+      const runeCanvas = document.createElement('canvas');
+      runeCanvas.width = runeCanvas.height = 512;
+      {
+        const context = runeCanvas.getContext('2d');
+        context.translate(256, 256);
+        context.fillStyle = '#c8fff4';
+        context.font = '34px serif';
+        context.textAlign = 'center';
+        const glyphs = 'ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾᛁᛃᛇᛈᛉᛊᛏᛒᛖᛗᛚᛜᛞᛟ';
+        for (let index = 0; index < 24; index++) {
+          context.save();
+          context.rotate(index / 24 * Math.PI * 2);
+          context.fillText(glyphs[index], 0, -206);
+          context.restore();
+        }
+      }
+      const runeTexture = new THREE.CanvasTexture(runeCanvas);
+      const runes = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 2.3), new THREE.MeshBasicMaterial({ map: runeTexture, color: '#7ff5e0', transparent: true, opacity: .9, depthWrite: false, blending: THREE.AdditiveBlending }));
+      runes.rotation.x = -Math.PI / 2;
+      runes.position.y = .016;
+      previewScene.add(pedestal, rim, pedestalRing, runes);
+      // Moss, grass and glowing mushrooms around the foot of the dais.
+      {
+        const mossMaterial = new THREE.MeshStandardMaterial({ color: '#4f9a4a', roughness: .9 });
+        for (let index = 0; index < 22; index++) {
+          const angle = index / 22 * Math.PI * 2 + Math.random() * .2, radius = 1.3 + Math.random() * .12;
+          const blade = new THREE.Mesh(new THREE.ConeGeometry(.035, .26 + Math.random() * .18, 3), mossMaterial);
+          blade.position.set(Math.cos(angle) * radius, -.2, Math.sin(angle) * radius);
+          blade.rotation.set(Math.random() * .6 - .3, 0, Math.random() * .6 - .3);
+          previewScene.add(blade);
+        }
+        for (const [angle, color] of [[2.2, '#5ef0ff'], [2.5, '#ff7ad9'], [.7, '#ffd36b'], [4.1, '#9dff8a'], [3.0, '#5ef0ff']]) {
+          const x = Math.cos(angle) * 1.32, z = Math.sin(angle) * 1.32;
+          const stem = new THREE.Mesh(new THREE.CylinderGeometry(.025, .035, .16, 6), new THREE.MeshStandardMaterial({ color: '#efe3cf' }));
+          stem.position.set(x, -.24, z);
+          const cap = new THREE.Mesh(new THREE.SphereGeometry(.09, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: .9, roughness: .4 }));
+          cap.position.set(x, -.17, z);
+          previewScene.add(stem, cap);
+        }
+      }
+      // Drifting fireflies and a faint star field behind.
+      const fireflies = [];
+      for (let index = 0; index < 14; index++) {
+        const firefly = new THREE.Mesh(new THREE.SphereGeometry(.025, 6, 4), new THREE.MeshBasicMaterial({ color: ['#ffd36b', '#9dff8a', '#5ef0ff'][index % 3] }));
+        firefly.userData = { angle: Math.random() * Math.PI * 2, radius: 1.3 + Math.random() * 1.1, height: .2 + Math.random() * 3.4, speed: .2 + Math.random() * .4 };
+        fireflies.push(firefly);
+        previewScene.add(firefly);
+      }
+      {
+        const positions = [];
+        for (let index = 0; index < 70; index++) positions.push((Math.random() - .5) * 20, Math.random() * 10, -10 - Math.random() * 8);
+        const starGeometry = new THREE.BufferGeometry();
+        starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        previewScene.add(new THREE.Points(starGeometry, new THREE.PointsMaterial({ color: "#fff4dc", size: 1.5, sizeAttenuation: false, transparent: true, opacity: .55 })));
+      }
+      // Animates the stage itself (runes, fireflies, the pulsing ring).
+      function animateStage(time) {
+        runes.rotation.z = time * .15;
+        pedestalRing.material.emissiveIntensity = 1.4 + Math.sin(time * 2) * .35;
+        fireflies.forEach(firefly => {
+          const data = firefly.userData;
+          const angle = data.angle + time * data.speed;
+          firefly.position.set(Math.cos(angle) * data.radius, data.height + Math.sin(time * 1.3 + data.angle) * .25, Math.sin(angle) * data.radius);
+          firefly.visible = Math.sin(time * 2 + data.angle * 5) > -.6;
+        });
+      }
+      // Gnomes on the stage cast soft shadows on the dais.
+      const castStageShadows = model => model.traverse(part => { if (part.isMesh && !(part.material && part.material.transparent)) part.castShadow = true; });
       let previewModel = null, previewRunning = true, previewAngle = .5;
       function rebuildPreview() {
         if (previewModel) {
@@ -5588,6 +5825,7 @@
         }
         // In the collection, show the item being inspected; otherwise your equipped look.
         previewModel = buildWizardModel(collectionOpen() && inspected ? inspectLook() : lookFor(profile.model));
+        castStageShadows(previewModel);
         previewScene.add(previewModel);
       }
       function sizePreview() {
@@ -5609,13 +5847,18 @@
           previewModel.position.y = Math.sin(time / 700) * .03;
           previewModel.userData.animate(time / 1000);
         }
+        animateStage(time / 1000);
         // While the collection is open its own canvas shows the preview instead.
         if (collectionOpen()) {
           const { width, height } = collectionCanvas.getBoundingClientRect();
           previewCamera.aspect = width / Math.max(1, height);
           previewCamera.updateProjectionMatrix();
+          previewScene.background = collectionBackdrop;
           collectionRenderer.render(previewScene, previewCamera);
-        } else previewRenderer.render(previewScene, previewCamera);
+        } else {
+          previewScene.background = menuBackdrop;
+          previewRenderer.render(previewScene, previewCamera);
+        }
       }
       window.addEventListener('resize', sizePreview);
       // The preview grows with its column, so resize the 3D view whenever the canvas changes size.
@@ -5782,6 +6025,8 @@
       collectionRenderer.outputEncoding = THREE.sRGBEncoding;
       collectionRenderer.toneMapping = THREE.ACESFilmicToneMapping;
       collectionRenderer.toneMappingExposure = .95;
+      collectionRenderer.shadowMap.enabled = true;
+      collectionRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
       function collectionOpen() { return !collectionPanel.hidden; }
       let collectionTab = 'skin', collectionModel = profile.model, inspected = null;
       function itemsFor(tab) {
