@@ -385,6 +385,9 @@
     .choice strong { font: 600 15px var(--sans); letter-spacing: .02em; }
     .choice small { color: #978bb2; font-size: 10px; line-height: 1.4; }
     .choice .rank-chip { margin-top: 6px; padding: 3px 7px; border: 1px solid #f0c87655; color: var(--gold); font-size: 10px; }
+    .choice:disabled { opacity: .55; cursor: not-allowed; border-style: dashed; }
+    .choice:disabled:hover { border-color: #43395c; }
+    .soon-tag { margin-left: 6px; padding: 1px 6px; border: 1px solid #f0c87666; color: var(--gold); font: 600 9px var(--sans); letter-spacing: .08em; text-transform: uppercase; vertical-align: middle; }
     .rank-list { display: grid; gap: 8px; }
     .rank-entry { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid #ffffff14; background: #ffffff05; }
     .rank-entry-body { display: grid; gap: 3px; }
@@ -847,7 +850,7 @@
           <div class="type-options">
             <button class="choice" data-type="ai"><strong>Versus AI</strong><small>Practice match. Rank is not affected.</small></button>
             <button class="choice" data-type="unranked"><strong>Unranked</strong><small>Versus players, no rank at stake. AI stand-ins until online play.</small></button>
-            <button class="choice" data-type="ranked"><strong>Ranked</strong><small>Earn or lose RP. Online queue coming soon; AI stand-ins for now.</small></button>
+            <button class="choice" data-type="ranked" disabled title="Ranked opens with online matchmaking"><strong>Ranked<span class="soon-tag">Coming soon</span></strong><small>Climb the season ladder against real players. Opens with online matchmaking.</small></button>
             <button class="choice" data-type="friends"><strong>Private match</strong><small>Play online with friends using an invite code or link.</small></button>
           </div>
           <div class="field-label ranks-label"><span>Season 04 ranks</span><button class="info-button" id="rank-info-button" type="button">ⓘ How ranking works</button></div>
@@ -939,7 +942,7 @@
           <p>Reach <b>2,600 RP</b> to enter Grandmaster, the league for the top 200 wizards on each ladder.</p>
           <h3>Skill (MMR)</h3>
           <p>The scoreboard also shows a hidden skill rating (MMR) that follows your win–loss record. Matchmaking pairs wizards of similar MMR, from Novice up to Archmage.</p>
-          <p class="queue-note">Online ranked queues are coming soon. Until then, ranked matches are filled with AI stand-ins, but your RP and league are tracked for real.</p>
+          <p class="queue-note">Ranked is coming soon. It opens once online matchmaking against real players is ready.</p>
         </section>
       </div>
     </div>
@@ -1216,10 +1219,10 @@
       grovewarden: {
         theme: 'nature',
         special: { name: 'Entangling Roots', icon: '❦', color: '#7fe07a', cost: 26, cooldown: 8, range: 18, radius: 2.6, delay: .45, damage: 22, slow: { factor: .15, duration: 1.8 }, desc: 'Roots burst from the ground at the reticle, damaging and rooting enemies.' },
-        bolt: { name: 'Thorn Dart', icon: '✦', color: '#9ff0a8', cost: 14, cooldown: .55, damage: 36, speed: 25, slow: { factor: .65, duration: 1.5 }, desc: 'Swift thorn that entangles and slows its target.' },
+        bolt: { name: 'Thorn Dart', icon: '✦', color: '#9ff0a8', cost: 14, cooldown: .65, damage: 30, speed: 25, slow: { factor: .65, duration: 1.5 }, desc: 'Swift thorn that entangles and slows its target.' },
         wall: { name: 'Wall of Thorns', icon: '▥', color: '#8fd67c', cost: 22, cooldown: 4.5, duration: 9, aura: { slow: { factor: .7, duration: .4 } }, desc: 'Long-lasting briar wall that snags anyone brushing past.' },
         blink: { name: 'Wisp Step', icon: '⌁', color: '#b9f5c9', cost: 20, cooldown: 3.2, distance: 10, desc: 'Drift forward as a will-o’-wisp.' },
-        ward: { name: 'Barkskin', icon: '◉', color: '#f0c876', cost: 24, cooldown: 7, type: 'immune', duration: 5.5, desc: 'Hardened bark that blocks all damage for a few seconds.' }
+        ward: { name: 'Barkskin', icon: '◉', color: '#f0c876', cost: 24, cooldown: 12, type: 'immune', duration: 2, desc: 'Hardened bark that blocks all damage for 2 seconds.' }
       },
       stormcaller: {
         theme: 'frost',
@@ -5525,13 +5528,16 @@
       const PLACEMENT_GAMES = 5;
       const RP_CHANGE = { '1v1': { won: 25, lost: -20 }, '1v1v1': { won: 30, lost: -15 } };
       const PLACEMENT_CHANGE = { won: 60, lost: -40 };
+      // Ranked stays locked ("Coming soon") until online matchmaking against real players exists.
+      const RANKED_OPEN = false;
       const defaults = { name: '', model: 'grovewarden', mode: '1v1', matchType: 'ai', sensitivity: 1, cameraMode: 'action', rp: { '1v1': 1050, '1v1v1': 1050 }, record: { '1v1': { wins: 0, losses: 0 }, '1v1v1': { wins: 0, losses: 0 } },
         // Progression and cosmetics. New players start with one welcome chest.
         xp: 0, level: 1, gold: 0, chests: 1, owned: [], equipped: { skins: {}, dyes: {}, aura: 'none', title: 'none' }, lastBonusDay: '' };
       let profile;
       try { profile = { ...defaults, ...JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') }; } catch { profile = { ...defaults }; }
+      if (!RANKED_OPEN && profile.matchType === 'ranked') profile.matchType = 'ai';
       profile.rp = { ...defaults.rp, ...(profile.rp || {}) };
-      profile.record = { ...defaults.record, ...(profile.record || {}) };
+      profile.record ={ ...defaults.record, ...(profile.record || {}) };
       profile.owned = Array.isArray(profile.owned) ? profile.owned : [];
       profile.equipped = { ...defaults.equipped, ...(profile.equipped || {}) };
       profile.equipped.skins = { ...(profile.equipped.skins || {}) };
@@ -5675,7 +5681,11 @@
         document.querySelectorAll('[data-rank-chip]').forEach(chip => {
           const mode = chip.dataset.rankChip, rank = rankFor(profile.rp[mode], profile.record[mode]);
           chip.innerHTML = `${emblem(rank)}${rank.placing ? rankLine(rank) : `${rank.name} · ${rank.rp.toLocaleString()} RP`}`;
+          chip.style.display = RANKED_OPEN ? '' : 'none';
         });
+        // While Ranked is locked, hide the rank ladder and just say it's on the way.
+        $('#rank-list').style.display = RANKED_OPEN ? '' : 'none';
+        $('.ranks-label span').textContent = RANKED_OPEN ? 'Season 04 ranks' : 'Ranked · coming soon';
         $('#rank-list').innerHTML = Object.keys(MODES).map(mode => {
           const record = profile.record[mode], rank = rankFor(profile.rp[mode], record);
           return `<div class="rank-entry">${emblem(rank)}<div class="rank-entry-body">
