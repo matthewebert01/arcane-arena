@@ -5675,7 +5675,7 @@
       // Esc releases the mouse and opens the match menu. If the browser refuses to capture the mouse, the classic
       // drag controls below are used instead.
       const actionMode = config.cameraMode !== 'classic';
-      let actionLocked = false, actionFallback = false, actionButtonsHeld = 0, actionFireHeld = false, actionLookHeld = false;
+      let actionLocked = false, actionEverLocked = false, actionFallback = false, actionButtonsHeld = 0, actionFireHeld = false, actionLookHeld = false;
       const aimPrompt = document.querySelector('#aim-prompt');
       const usingActionMouse = event => actionMode && !actionFallback && event.pointerType === 'mouse';
       function requestActionLock() {
@@ -5714,12 +5714,15 @@
         if (!actionMode || actionFallback) return;
         const wasLocked = actionLocked;
         actionLocked = document.pointerLockElement === canvas;
+        if (actionLocked) actionEverLocked = true;
         if (!actionLocked) { actionButtonsHeld = 0; actionFireHeld = false; actionLookHeld = false; }
         // Losing the mouse mid-match (Esc, alt-tab) opens the match menu, like a shooter's pause screen.
         if (wasLocked && !actionLocked && gameState === 'playing' && !gameMenuOpen) setGameMenu(true);
       });
       document.addEventListener('pointerlockerror', () => {
         if (!actionMode || actionFallback) return;
+        // Browsers refuse to re-capture the mouse for a moment after Esc. That's temporary, so just ask again.
+        if (actionEverLocked) { showToast('Click the arena to aim again'); return; }
         actionFallback = true;
         showToast('Mouse capture unavailable here · using drag controls');
       });
@@ -5911,7 +5914,7 @@
         document.querySelector('#tutorial-step').textContent = `Tutorial · ${index + 1} / ${tutorialSteps.length}`;
         document.querySelector('#tutorial-title').textContent = step.title;
         document.querySelector('#tutorial-text').innerHTML = step.text;
-        document.querySelector('#tutorial-hint').textContent = step.info ? '' : 'Do it to continue';
+        document.querySelector('#tutorial-hint').textContent = step.info ? (actionMode ? 'Click or press Enter' : 'Press Enter') : 'Do it to continue';
         const next = document.querySelector('#tutorial-next');
         next.hidden = !step.info;
         next.textContent = step.last ? 'Finish ↵' : 'Continue ↵';
@@ -5933,7 +5936,8 @@
       // Every frame: check the current task, and keep the gold outline on the HUD element being described.
       function updateTutorial() {
         if (!tutorial || tutorial.index < 0) return;
-        if (gameState !== 'playing') { tutorialCard.hidden = tutorialSpot.hidden = true; return; }
+        if (gameState !== 'playing' || gameMenuOpen) { tutorialCard.hidden = tutorialSpot.hidden = true; return; }
+        tutorialCard.hidden = false;
         const step = tutorialSteps[tutorial.index];
         if (!step.info && tutorial.doneAt === null && step.done()) {
           tutorial.doneAt = performance.now();
@@ -5962,6 +5966,16 @@
           if (!event.repeat) advanceTutorial();
         }, true);
         document.querySelector('#tutorial-next').addEventListener('click', advanceTutorial);
+        // While the mouse is captured for aiming, a left click continues an info step (instead of casting).
+        window.addEventListener('pointerdown', event => {
+          const step = tutorialSteps[tutorial.index];
+          if (!step || !step.info || gameMenuOpen || event.button !== 0 || document.pointerLockElement !== canvas) return;
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          // Treat the button as already held so the rest of this click doesn't fire a spell.
+          actionButtonsHeld = 1;
+          advanceTutorial();
+        }, true);
         document.querySelector('#tutorial-next').addEventListener('pointerdown', event => event.stopPropagation());
         setTimeout(() => showTutorialStep(0), 700);
       }
