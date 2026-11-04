@@ -860,6 +860,10 @@
         <button class="camera-mode" data-camera-mode="action" type="button"><strong>Action camera (recommended)</strong><small>Click the arena to capture the mouse. Mouse turns and aims, left click fires (hold to keep firing), right click cancels a wall preview. Easiest for strafing and shooting. Esc releases the mouse.</small></button>
         <button class="camera-mode" data-camera-mode="classic" type="button"><strong>Classic (drag)</strong><small>World of Warcraft style: right-drag to steer, left-drag to orbit the camera, click to fire.</small></button>
       </div>
+      <div class="camera-modes graphics-modes">
+        <button class="camera-mode" data-graphics="high" type="button"><strong>Graphics: High</strong><small>Shadows, glowing magic, detailed stone and plants along the walls. Best on desktops and laptops.</small></button>
+        <button class="camera-mode" data-graphics="low" type="button"><strong>Graphics: Low</strong><small>Faster. No shadows, glow or extra plants. Use this if the game feels choppy.</small></button>
+      </div>
       <p class="controls-intro">Click a key, then press the new key you want. If another action already uses it, the two swap. <b>Esc</b> cancels.</p>
       <div class="controls-grid" id="controls-grid"></div>
       <div class="controls-footer">
@@ -1030,6 +1034,14 @@
     </main>
   </div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- Glow effect (bloom) for High graphics. The game still runs if these fail to load. -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/GammaCorrectionShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
   <script>
     // Character models and spell kits, shared by the menu and the match.
     window.WIZARD_MODELS = [
@@ -1185,6 +1197,35 @@
     // Wizards are garden gnomes: stout and round, with a tall pointy hat, a big fluffy beard, a round nose,
     // rosy cheeks and chunky boots. Each school adds its own flair. Your robe colour is the gnome's tunic.
     // Optional cosmetics: `skin` (colour overrides and extras from a skin's look), `aura` id and `robe` dye finish.
+    // A fine woven-fabric bump texture shared by every gnome's robe, hat and trousers (made once, on first use).
+    let clothBumpTexture = null;
+    function clothBump() {
+      if (clothBumpTexture) return clothBumpTexture;
+      const size = 256, canvas = document.createElement('canvas');
+      canvas.width = canvas.height = size;
+      const context = canvas.getContext('2d');
+      context.fillStyle = '#808080';
+      context.fillRect(0, 0, size, size);
+      // Diagonal twill weave with a little random fuzz.
+      for (let y = 0; y < size; y += 4) {
+        for (let x = 0; x < size; x += 4) {
+          const shade = 110 + ((x + y) / 4 % 4 < 2 ? 40 : -10) + Math.random() * 30;
+          context.fillStyle = `rgb(${shade},${shade},${shade})`;
+          context.fillRect(x, y, 3, 3);
+        }
+      }
+      // A few soft folds running down the cloth.
+      for (let index = 0; index < 7; index++) {
+        const x = Math.random() * size, gradient = context.createLinearGradient(x - 14, 0, x + 14, 0);
+        gradient.addColorStop(0, '#0000'); gradient.addColorStop(.5, '#0003'); gradient.addColorStop(1, '#0000');
+        context.fillStyle = gradient;
+        context.fillRect(x - 14, 0, 28, size);
+      }
+      clothBumpTexture = new THREE.CanvasTexture(canvas);
+      clothBumpTexture.wrapS = clothBumpTexture.wrapT = THREE.RepeatWrapping;
+      clothBumpTexture.repeat.set(3, 2);
+      return clothBumpTexture;
+    }
     window.buildWizardModel = ({ model = 'grovewarden', color = '#327c58', crystalColor = '#87d2bf', skin = {}, aura = null, robe = {} }) => {
       const group = new THREE.Group();
       const flickers = [], spinners = [], pulses = [], sways = [], bobbers = [], fallers = [], shimmers = [], wings = [];
@@ -1207,10 +1248,11 @@
       const std = (materialColor, extra = {}) => new THREE.MeshStandardMaterial({ color: materialColor, roughness: .7, ...extra });
       const glowMaterial = (glowColor, intensity = 1.6) => std(glowColor, { emissive: glowColor, emissiveIntensity: intensity, roughness: .3 });
       // Robe dyes can be metallic, glowing, or slowly shift through colours.
-      const tunicMaterial = std(color, { roughness: robe.metal ? .28 : .75, metalness: robe.metal ? .75 : 0, emissive: color, emissiveIntensity: robe.glow ? .35 : robe.shimmer ? .22 : .04 });
+      const cloth = { bumpMap: clothBump(), bumpScale: .012 };
+      const tunicMaterial = std(color, { roughness: robe.metal ? .28 : .75, metalness: robe.metal ? .75 : 0, emissive: color, emissiveIntensity: robe.glow ? .35 : robe.shimmer ? .22 : .04, ...(robe.metal ? {} : cloth) });
       if (robe.shimmer) shimmers.push(tunicMaterial);
-      const hatMaterial = std(hatColor, { roughness: .6, ...(skin.hatGlow ? { emissive: skin.hatGlow, emissiveIntensity: .35 } : {}) });
-      const trouserMaterial = std(trouserColor, { roughness: .85 });
+      const hatMaterial = std(hatColor, { roughness: .6, ...cloth, ...(skin.hatGlow ? { emissive: skin.hatGlow, emissiveIntensity: .35 } : {}) });
+      const trouserMaterial = std(trouserColor, { roughness: .85, ...cloth });
       const goldMaterial = std(skin.metal || '#d6b86a', { metalness: .6, roughness: .32 });
       const leatherMaterial = std('#5a3b26', { roughness: .8 });
       const skinMaterial = std('#f0c8a4', { roughness: .8 });
@@ -1746,39 +1788,209 @@
       const camera = new THREE.PerspectiveCamera(64, 1, .1, 180);
       const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
-      renderer.shadowMap.enabled = false;
+      // Graphics quality: High adds soft shadows, a glow effect on magic and lights, and plants and rubble along the walls.
+      const highGraphics = config.graphics !== 'low';
+      renderer.shadowMap.enabled = highGraphics;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.outputEncoding = THREE.sRGBEncoding;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = .86;
+      renderer.toneMappingExposure = highGraphics ? .8 : .86;
+      if (!highGraphics) renderer.setPixelRatio(1);
 
-      function createStoneTexture() {
-        const textureCanvas = document.createElement('canvas');
-        textureCanvas.width = 256;
-        textureCanvas.height = 256;
-        const textureContext = textureCanvas.getContext('2d');
-        // Jewel-toned stone: violets, periwinkles and teals.
-        const stoneColors = ['#5d4a9a', '#6b56b0', '#4f68b4', '#7a55a8', '#4f86a8'];
-        textureContext.fillStyle = '#3a2d6e';
-        textureContext.fillRect(0, 0, 256, 256);
-        for (let row = 0; row < 8; row++) {
-          const offset = row % 2 ? -32 : 0;
-          for (let col = -1; col < 5; col++) {
-            const x = col * 64 + offset, y = row * 32;
-            textureContext.fillStyle = stoneColors[(row * 3 + col * 5 + 20) % stoneColors.length];
-            textureContext.fillRect(x + 1, y + 1, 62, 30);
-            textureContext.strokeStyle = '#2a2056';
-            textureContext.lineWidth = 2;
-            textureContext.strokeRect(x + 1, y + 1, 62, 30);
-            textureContext.fillStyle = '#e6d8ff30';
-            textureContext.fillRect(x + 3, y + 3, 58, 2);
-          }
+      // ---------- Hand-painted textures (drawn on canvases, so no image files are needed) ----------
+      const randomBetween = (min, max) => min + Math.random() * (max - min);
+      // Grainy per-pixel variation so surfaces don't look flat.
+      function addGrain(context, size, amount) {
+        const image = context.getImageData(0, 0, size, size), data = image.data;
+        for (let index = 0; index < data.length; index += 4) {
+          const grain = (Math.random() - .5) * amount;
+          data[index] += grain; data[index + 1] += grain; data[index + 2] += grain;
         }
+        context.putImageData(image, 0, 0);
+      }
+      function canvasTexture(textureCanvas, color = true) {
         const texture = new THREE.CanvasTexture(textureCanvas);
-        texture.encoding = THREE.sRGBEncoding;
-        texture.anisotropy = 4;
+        if (color) texture.encoding = THREE.sRGBEncoding;
+        texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+        texture.anisotropy = highGraphics ? 8 : 4;
         return texture;
       }
-      const stoneTexture = createStoneTexture();
+      // Traces a rounded block (bricks and flagstones).
+      function roundedBlock(context, x, y, width, height, radius) {
+        context.beginPath();
+        context.moveTo(x + radius, y);
+        context.arcTo(x + width, y, x + width, y + height, radius);
+        context.arcTo(x + width, y + height, x, y + height, radius);
+        context.arcTo(x, y + height, x, y, radius);
+        context.arcTo(x, y, x + width, y, radius);
+        context.closePath();
+      }
+      // A wandering hairline crack, drawn on both canvases.
+      function paintCrack(color, bump, x, top, bottom, wander, colorShade) {
+        color.strokeStyle = colorShade; bump.strokeStyle = '#202020'; color.lineWidth = bump.lineWidth = 1.5;
+        color.beginPath(); bump.beginPath(); color.moveTo(x, top); bump.moveTo(x, top);
+        let y = top;
+        while (y < bottom) { x += randomBetween(-wander, wander); y += randomBetween(5, 12); color.lineTo(x, y); bump.lineTo(x, y); }
+        color.stroke(); bump.stroke();
+      }
+      // Maze walls: irregular jewel-toned bricks with deep mortar, chips, cracks, grime and moss at the base.
+      // One copy of the texture covers the full wall height, so the moss always sits on the ground.
+      function createStoneTextures() {
+        const size = 512, rows = 8, rowHeight = size / rows;
+        const colorCanvas = document.createElement('canvas'), bumpCanvas = document.createElement('canvas');
+        colorCanvas.width = colorCanvas.height = bumpCanvas.width = bumpCanvas.height = size;
+        const color = colorCanvas.getContext('2d'), bump = bumpCanvas.getContext('2d');
+        const stoneColors = ['#5d4a9a', '#6b56b0', '#4f68b4', '#7a55a8', '#4f86a8', '#5a5aa6'];
+        color.fillStyle = '#251b4c';
+        color.fillRect(0, 0, size, size);
+        bump.fillStyle = '#000';
+        bump.fillRect(0, 0, size, size);
+        for (let row = 0; row < rows; row++) {
+          // Bricks of different lengths, wrapping around the edge so the texture tiles sideways.
+          let x = randomBetween(0, 80);
+          const startX = x;
+          while (x < startX + size) {
+            const width = Math.min(randomBetween(70, 135), startX + size - x);
+            if (width < 30) break;
+            const y = row * rowHeight, inset = randomBetween(2.5, 4.5);
+            const base = new THREE.Color(stoneColors[Math.floor(Math.random() * stoneColors.length)]).offsetHSL(randomBetween(-.02, .02), randomBetween(-.05, .05), randomBetween(-.06, .05));
+            const light = `#${base.clone().offsetHSL(0, 0, .07).getHexString()}`, dark = `#${base.clone().offsetHSL(0, 0, -.07).getHexString()}`;
+            const height = Math.floor(randomBetween(170, 220));
+            const chips = [0, 1, 2].filter(() => Math.random() < .55).map(() => [Math.random() < .5 ? randomBetween(0, 10) : -randomBetween(0, 10), Math.random(), randomBetween(3, 7)]);
+            const crackAt = Math.random() < .3 ? randomBetween(.15, .85) : null;
+            for (const shift of [0, -size]) {
+              const left = x + shift + inset, top = y + inset, w = width - inset * 2, h = rowHeight - inset * 2;
+              // Colour: a soft top-lit gradient on each brick, with a pale top edge.
+              const gradient = color.createLinearGradient(0, top, 0, top + h);
+              gradient.addColorStop(0, light);
+              gradient.addColorStop(1, dark);
+              color.fillStyle = gradient;
+              roundedBlock(color, left, top, w, h, 6);
+              color.fill();
+              color.strokeStyle = '#ffffff22';
+              color.lineWidth = 2;
+              color.beginPath(); color.moveTo(left + 5, top + 2); color.lineTo(left + w - 5, top + 2); color.stroke();
+              // Bump: raised brick faces.
+              bump.fillStyle = `rgb(${height},${height},${height})`;
+              roundedBlock(bump, left, top, w, h, 7);
+              bump.fill();
+              // Chips knocked out of the edges.
+              for (const [edge, along, radius] of chips) {
+                const cx = edge >= 0 ? left + edge : left + w + edge, cy = top + along * h;
+                color.fillStyle = '#2a2050'; color.beginPath(); color.arc(cx, cy, radius, 0, Math.PI * 2); color.fill();
+                bump.fillStyle = '#303030'; bump.beginPath(); bump.arc(cx, cy, radius, 0, Math.PI * 2); bump.fill();
+              }
+              if (crackAt !== null) paintCrack(color, bump, left + crackAt * w, top + 3, top + h - 4, 6, '#1e1640');
+            }
+            x += width;
+          }
+        }
+        // Grime rising from the floor, then moss clinging to the lowest bricks.
+        const grime = color.createLinearGradient(0, size, 0, size * .62);
+        grime.addColorStop(0, '#120c24cc'); grime.addColorStop(1, '#120c2400');
+        color.fillStyle = grime;
+        color.fillRect(0, size * .62, size, size * .38);
+        for (let index = 0; index < 900; index++) {
+          const x = Math.random() * size, depth = Math.pow(Math.random(), 2.2), y = size - depth * size * .3;
+          const radius = randomBetween(1.5, 5) * (1 - depth * .6);
+          color.fillStyle = Math.random() < .5 ? '#3f8a4fcc' : '#5aa860aa';
+          color.beginPath(); color.arc(x, y, radius, 0, Math.PI * 2); color.fill();
+          bump.fillStyle = '#d8d8d8'; bump.beginPath(); bump.arc(x, y, radius, 0, Math.PI * 2); bump.fill();
+        }
+        // Damp streaks running down from the top.
+        for (let index = 0; index < 10; index++) {
+          const x = Math.random() * size, length = randomBetween(60, 220), streak = color.createLinearGradient(0, 0, 0, length);
+          streak.addColorStop(0, '#0c081a55'); streak.addColorStop(1, '#0c081a00');
+          color.fillStyle = streak;
+          color.fillRect(x, 0, randomBetween(4, 12), length);
+        }
+        addGrain(color, size, 22);
+        addGrain(bump, size, 36);
+        return { map: canvasTexture(colorCanvas), bump: canvasTexture(bumpCanvas, false) };
+      }
+      // Floor: worn flagstones with dark grout and moss in the cracks. One copy covers one maze cell.
+      function createFloorTextures() {
+        const size = 512;
+        const colorCanvas = document.createElement('canvas'), bumpCanvas = document.createElement('canvas');
+        colorCanvas.width = colorCanvas.height = bumpCanvas.width = bumpCanvas.height = size;
+        const color = colorCanvas.getContext('2d'), bump = bumpCanvas.getContext('2d');
+        color.fillStyle = '#2a2436';
+        color.fillRect(0, 0, size, size);
+        bump.fillStyle = '#000';
+        bump.fillRect(0, 0, size, size);
+        // Rows of slabs; row heights add up to the texture size so it tiles.
+        const heights = [];
+        let total = 0;
+        while (total < size) {
+          const h = randomBetween(90, 150);
+          if (size - total - h < 70) { heights.push(size - total); break; }
+          heights.push(h);
+          total += h;
+        }
+        let y = 0;
+        for (const rowHeight of heights) {
+          let x = randomBetween(0, 120);
+          const startX = x;
+          while (x < startX + size) {
+            const width = Math.min(randomBetween(100, 210), startX + size - x);
+            if (width < 40) break;
+            const shade = randomBetween(125, 165), tint = randomBetween(-8, 8), height = Math.floor(randomBetween(165, 215));
+            const pad = [randomBetween(3, 6), randomBetween(3, 6), randomBetween(6, 11), randomBetween(6, 11)];
+            const marks = [0, 1, 2, 3].map(() => [Math.random() < .5 ? '#00000014' : '#ffffff12', Math.random(), Math.random(), randomBetween(6, 22), randomBetween(3, 10), Math.random() * Math.PI]);
+            const crackAt = Math.random() < .25 ? randomBetween(.15, .85) : null;
+            for (const shift of [0, -size]) {
+              const left = x + shift + pad[0], top = y + pad[1], w = width - pad[2], h = rowHeight - pad[3];
+              const gradient = color.createRadialGradient(left + w * .4, top + h * .35, 4, left + w / 2, top + h / 2, Math.max(w, h) * .75);
+              gradient.addColorStop(0, `rgb(${shade + 12 + tint},${shade + 12},${shade + 16 - tint})`);
+              gradient.addColorStop(1, `rgb(${shade - 26 + tint},${shade - 26},${shade - 20 - tint})`);
+              color.fillStyle = gradient;
+              roundedBlock(color, left, top, w, h, 10);
+              color.fill();
+              bump.fillStyle = `rgb(${height},${height},${height})`;
+              roundedBlock(bump, left, top, w, h, 12);
+              bump.fill();
+              // Scuffs and worn patches.
+              for (const [shadeMark, mx, my, rx, ry, angle] of marks) {
+                color.fillStyle = shadeMark;
+                color.beginPath(); color.ellipse(left + mx * w, top + my * h, rx, ry, angle, 0, Math.PI * 2); color.fill();
+              }
+              if (crackAt !== null) paintCrack(color, bump, left + crackAt * w, top + 4, top + h - 6, 9, '#2b2636');
+            }
+            x += width;
+          }
+          y += rowHeight;
+        }
+        // Moss growing in the grout lines.
+        const grout = bump.getImageData(0, 0, size, size).data;
+        for (let index = 0; index < 1600; index++) {
+          const x = Math.floor(Math.random() * size), mossY = Math.floor(Math.random() * size);
+          if (grout[(mossY * size + x) * 4] > 60) continue;
+          color.fillStyle = Math.random() < .5 ? '#4f9a5a99' : '#6ab86a77';
+          color.beginPath(); color.arc(x, mossY, randomBetween(1.5, 4), 0, Math.PI * 2); color.fill();
+        }
+        addGrain(color, size, 18);
+        addGrain(bump, size, 30);
+        return { map: canvasTexture(colorCanvas), bump: canvasTexture(bumpCanvas, false) };
+      }
+      const stoneTextures = createStoneTextures();
+      const floorTextures = createFloorTextures();
+      const stoneTexture = stoneTextures.map;
+      // Box UVs in world units: one texture copy spans `span` metres across and the full height up,
+      // so bricks are the same size on every wall and the moss stays at the bottom.
+      function worldUVs(geometry, width, height, depth, span) {
+        const uv = geometry.attributes.uv;
+        // BoxGeometry faces in order: +x, -x, +y, -y, +z, -z (4 corners each).
+        const faceSize = [[depth, height], [depth, height], [width, depth], [width, depth], [width, height], [width, height]];
+        for (let face = 0; face < 6; face++) {
+          const [u, v] = faceSize[face];
+          const top = face === 2 || face === 3;
+          for (let corner = 0; corner < 4; corner++) {
+            const index = face * 4 + corner;
+            uv.setXY(index, uv.getX(index) * u / span, top ? uv.getY(index) * v / span : uv.getY(index));
+          }
+        }
+        uv.needsUpdate = true;
+      }
 
       const gridSize = 9;
       const cellSize = 8;
@@ -1799,8 +2011,9 @@
       const keys = new Set();
       const raycaster = new THREE.Raycaster();
       const spellMaterials = {
-        stone: new THREE.MeshStandardMaterial({ color: '#ece4ff', map: stoneTexture, roughness: .88 }),
-        stoneLight: new THREE.MeshStandardMaterial({ color: '#fff1dc', map: stoneTexture, roughness: .84 }),
+        stone: new THREE.MeshStandardMaterial({ color: '#ece4ff', map: stoneTexture, bumpMap: stoneTextures.bump, bumpScale: .05, roughness: .9 }),
+        stoneLight: new THREE.MeshStandardMaterial({ color: '#fff1dc', map: stoneTexture, bumpMap: stoneTextures.bump, bumpScale: .05, roughness: .86 }),
+        stoneCap: new THREE.MeshStandardMaterial({ color: '#544883', roughness: .85 }),
         floor: new THREE.MeshStandardMaterial({ color: '#2e2560', roughness: .96 }),
         teal: new THREE.MeshStandardMaterial({ color: '#87d2bf', emissive: '#286b61', emissiveIntensity: 1.25, roughness: .35 }),
         red: new THREE.MeshStandardMaterial({ color: '#ed8b72', emissive: '#812d24', emissiveIntensity: 1.1, roughness: .35 }),
@@ -2049,8 +2262,11 @@
         toastTimer = duration;
       }
       function addWall(x, z, width, depth, height = 4.7, material = spellMaterials.stone) {
-        const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material);
+        const geometry = new THREE.BoxGeometry(width, height, depth);
+        worldUVs(geometry, width, height, depth, 4.8);
+        const mesh = new THREE.Mesh(geometry, material);
         mesh.position.set(x, height / 2, z);
+        mesh.castShadow = mesh.receiveShadow = highGraphics;
         scene.add(mesh);
         wallColliders.push({ x, z, halfX: width / 2, halfZ: depth / 2, height, mesh, expires: 0 });
         return mesh;
@@ -2058,29 +2274,24 @@
       // Pillars cover the spots where wall boxes overlap, hiding flickering faces at corners and T-junctions.
       function addPillar(x, z, height = 4.8) {
         const size = .8;
-        const mesh = new THREE.Mesh(new THREE.BoxGeometry(size, height + .3, size), spellMaterials.stoneLight);
+        const geometry = new THREE.BoxGeometry(size, height + .3, size);
+        worldUVs(geometry, size, height + .3, size, 4.8);
+        const mesh = new THREE.Mesh(geometry, spellMaterials.stoneLight);
         mesh.position.set(x, (height + .3) / 2, z);
-        const cap = new THREE.Mesh(new THREE.BoxGeometry(size + .14, .16, size + .14), spellMaterials.stone);
+        const cap = new THREE.Mesh(new THREE.BoxGeometry(size + .14, .16, size + .14), spellMaterials.stoneCap);
         cap.position.set(x, height + .38, z);
+        mesh.castShadow = mesh.receiveShadow = cap.castShadow = highGraphics;
         scene.add(mesh, cap);
         wallColliders.push({ x, z, halfX: size / 2, halfZ: size / 2, height: height + .46, mesh, expires: 0 });
       }
+      // A carved cap along the top of each wall.
       function dressWall(wall) {
         const width = wall.halfX * 2, depth = wall.halfZ * 2;
         const height = wall.mesh.geometry.parameters.height;
-        const horizontal = width > depth;
-        const trim = new THREE.Mesh(new THREE.BoxGeometry(width + .16, .2, depth + .16), spellMaterials.stoneLight);
+        const trim = new THREE.Mesh(new THREE.BoxGeometry(width + .16, .2, depth + .16), spellMaterials.stoneCap);
         trim.position.set(wall.x, height - .1, wall.z);
+        trim.castShadow = highGraphics;
         scene.add(trim);
-        const length = horizontal ? width : depth;
-        const seamCount = Math.floor(length / 2.4);
-        for (let index = 1; index < seamCount; index++) {
-          const offset = -length / 2 + length * index / seamCount;
-          // Seams must span the wall's thin side only; using the long side made ghost slabs across corridors.
-          const seam = new THREE.Mesh(new THREE.BoxGeometry(horizontal ? .045 : width + .025, height * .78, horizontal ? depth + .025 : .045), spellMaterials.floor);
-          seam.position.set(wall.x + (horizontal ? offset : 0), height * .5, wall.z + (horizontal ? 0 : offset));
-          scene.add(seam);
-        }
       }
       function buildMaze() {
         // The maze itself was carved by generateBalancedLayout.
@@ -2097,20 +2308,22 @@
         ground.rotation.x = -Math.PI / 2;
         ground.position.y = -.12;
         scene.add(ground);
-        const tileMaterials = ['#2f6f8f', '#5a479c', '#7a4a92', '#2f7f78'].map(color => new THREE.MeshStandardMaterial({ color, roughness: .94 }));
-        const tileGeometry = new THREE.PlaneGeometry(cellSize - .12, cellSize - .12);
+        // Flagstone floor, tinted per cell in the arena's jewel colours. Each cell's stones are turned a different way.
+        const tileMaterials = ['#3c7c9e', '#6654b0', '#8454a2', '#388c84'].map(color => new THREE.MeshStandardMaterial({ color, map: floorTextures.map, bumpMap: floorTextures.bump, bumpScale: .04, roughness: .9 }));
+        const tileGeometry = new THREE.PlaneGeometry(cellSize, cellSize);
         for (let row = 0; row < gridSize; row++) {
           for (let col = 0; col < gridSize; col++) {
             const tile = new THREE.Mesh(tileGeometry, tileMaterials[(row * 3 + col * 5 + (row * col) % 3) % tileMaterials.length]);
-            tile.rotation.x = -Math.PI / 2;
+            tile.rotation.set(-Math.PI / 2, 0, ((row * 7 + col * 3) % 4) * Math.PI / 2);
             tile.position.set(cellWorld(col), -.045, cellWorld(row));
+            tile.receiveShadow = highGraphics;
             scene.add(tile);
           }
         }
         const grid = new THREE.GridHelper(worldWidth, gridSize, '#c9b6ff', '#8a72e0');
         grid.position.y = -.025;
         grid.material.transparent = true;
-        grid.material.opacity = .26;
+        grid.material.opacity = .08;
         scene.add(grid);
         const thickness = .65;
         const corners = new Set();
@@ -2361,15 +2574,157 @@
         const lamp = new THREE.PointLight(isHome ? '#85d6be' : '#ed9878', 2.3, 10);
         lamp.position.y = 2;
         group.add(base, ring, plinth, etching, gem, lamp);
+        group.userData.vault = true;
+        base.receiveShadow = highGraphics;
         group.position.set(x, 0, z);
         scene.add(group);
         return { group, gem, ring };
       }
+      // Night sky: a deep violet gradient dome, stars and a glowing moon.
+      function buildSky() {
+        const dome = new THREE.Mesh(new THREE.SphereGeometry(165, 32, 16), new THREE.ShaderMaterial({
+          side: THREE.BackSide, depthWrite: false, fog: false,
+          uniforms: { top: { value: new THREE.Color('#0e0828').convertSRGBToLinear() }, middle: { value: new THREE.Color('#2c1a5e').convertSRGBToLinear() }, horizon: { value: new THREE.Color('#6a3f9e').convertSRGBToLinear() } },
+          vertexShader: 'varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+          fragmentShader: 'uniform vec3 top; uniform vec3 middle; uniform vec3 horizon; varying vec3 vDir; void main() { float h = clamp(vDir.y, 0.0, 1.0); vec3 color = mix(horizon, middle, smoothstep(0.0, 0.25, h)); color = mix(color, top, smoothstep(0.25, 0.8, h)); gl_FragColor = linearToOutputTexel(vec4(color, 1.0)); }'
+        }));
+        dome.renderOrder = -10;
+        scene.add(dome);
+        const starPositions = [];
+        for (let index = 0; index < 900; index++) {
+          const angle = Math.random() * Math.PI * 2, height = Math.pow(Math.random(), .7) * .95 + .05;
+          const flat = Math.sqrt(1 - height * height);
+          starPositions.push(Math.cos(angle) * flat * 150, height * 150, Math.sin(angle) * flat * 150);
+        }
+        const starGeometry = new THREE.BufferGeometry();
+        starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
+        scene.add(new THREE.Points(starGeometry, new THREE.PointsMaterial({ color: '#fff4dc', size: 1.6, sizeAttenuation: false, fog: false, transparent: true, opacity: .85 })));
+        const moon = new THREE.Mesh(new THREE.SphereGeometry(7, 24, 16), new THREE.MeshBasicMaterial({ color: '#fff0d2', fog: false }));
+        moon.position.set(-95, 62, 95);
+        const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowSpriteTexture(), color: '#ffd9a0', transparent: true, opacity: .55, depthWrite: false, fog: false, blending: THREE.AdditiveBlending }));
+        halo.scale.set(48, 48, 1);
+        halo.position.copy(moon.position);
+        scene.add(moon, halo);
+      }
+      // Soft round glow used for the moon's halo.
+      function glowSpriteTexture() {
+        const glowCanvas = document.createElement('canvas');
+        glowCanvas.width = glowCanvas.height = 128;
+        const context = glowCanvas.getContext('2d'), gradient = context.createRadialGradient(64, 64, 0, 64, 64, 64);
+        gradient.addColorStop(0, '#ffffffff'); gradient.addColorStop(.25, '#ffffff66'); gradient.addColorStop(1, '#ffffff00');
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, 128, 128);
+        return new THREE.CanvasTexture(glowCanvas);
+      }
+      // High graphics: grass, glowing mushrooms, rubble and hanging vines along the walls.
+      // Drawn as instanced meshes (thousands of copies in a handful of draw calls).
+      function decorateWalls() {
+        const spots = [];
+        for (const wall of wallColliders) {
+          const horizontal = wall.halfX > wall.halfZ, length = (horizontal ? wall.halfX : wall.halfZ) * 2;
+          for (const side of [-1, 1]) {
+            const faceX = horizontal ? wall.x : wall.x + side * wall.halfX, faceZ = horizontal ? wall.z + side * wall.halfZ : wall.z;
+            // Skip the outside of the border walls.
+            if (Math.abs(horizontal ? faceZ : faceX) > worldEdge - .2) continue;
+            spots.push({ horizontal, side, faceX, faceZ, length, height: wall.height });
+          }
+        }
+        const point = (spot, along, out) => spot.horizontal
+          ? [spot.faceX + along, spot.faceZ + spot.side * out]
+          : [spot.faceX + spot.side * out, spot.faceZ + along];
+        const matrix = new THREE.Matrix4(), position = new THREE.Vector3(), rotation = new THREE.Quaternion(), scale = new THREE.Vector3(), euler = new THREE.Euler(), tint = new THREE.Color();
+        const place = (mesh, index, x, y, z, rx, ry, rz, sx, sy = sx, sz = sx) => {
+          position.set(x, y, z); rotation.setFromEuler(euler.set(rx, ry, rz)); scale.set(sx, sy, sz);
+          mesh.setMatrixAt(index, matrix.compose(position, rotation, scale));
+        };
+        const instanced = (geometry, material, count) => { const mesh = new THREE.InstancedMesh(geometry, material, count); mesh.receiveShadow = true; scene.add(mesh); return mesh; };
+        // Grass blades in tufts along the base of every wall.
+        const blades = instanced(new THREE.ConeGeometry(.045, .42, 3).translate(0, .21, 0), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .8 }), spots.length * 18);
+        const bladeColors = ['#4f9a4a', '#6cbf5a', '#3f8a6a', '#8fd06a'];
+        let blade = 0;
+        for (const spot of spots) {
+          for (let tuft = 0; tuft < 3; tuft++) {
+            const along = randomBetween(-spot.length / 2 + .6, spot.length / 2 - .6), out = randomBetween(.08, .3);
+            for (let piece = 0; piece < 6; piece++) {
+              const [x, z] = point(spot, along + randomBetween(-.18, .18), out + randomBetween(-.06, .1));
+              place(blades, blade, x, 0, z, randomBetween(-.45, .45), Math.random() * Math.PI, randomBetween(-.45, .45), 1, randomBetween(.6, 1.4), 1);
+              blades.setColorAt(blade++, tint.set(bladeColors[Math.floor(Math.random() * bladeColors.length)]));
+            }
+          }
+        }
+        blades.count = blade;
+        // Glowing mushroom clusters (on about a third of the walls).
+        const mushroomSpots = spots.filter(() => Math.random() < .33);
+        const stems = instanced(new THREE.CylinderGeometry(.028, .04, 1, 6).translate(0, .5, 0), new THREE.MeshStandardMaterial({ color: '#efe3cf', roughness: .7 }), mushroomSpots.length * 4);
+        const caps = instanced(new THREE.SphereGeometry(.1, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: '#ffffff', emissiveIntensity: .55, roughness: .4 }), mushroomSpots.length * 4);
+        const capColors = ['#5ef0ff', '#ff7ad9', '#ffd36b', '#9dff8a'];
+        let mushroom = 0;
+        for (const spot of mushroomSpots) {
+          const along = randomBetween(-spot.length / 2 + .8, spot.length / 2 - .8), color = capColors[Math.floor(Math.random() * capColors.length)];
+          const count = 2 + Math.floor(Math.random() * 3);
+          for (let piece = 0; piece < count; piece++) {
+            const [x, z] = point(spot, along + randomBetween(-.25, .25), randomBetween(.1, .32));
+            const size = randomBetween(.7, 1.5), stemHeight = .12 * size + randomBetween(0, .08), lean = randomBetween(-.2, .2);
+            place(stems, mushroom, x, 0, z, lean, 0, lean, size, stemHeight, size);
+            place(caps, mushroom, x + Math.sin(lean) * stemHeight, stemHeight - .01, z, lean, 0, lean, size * 1.1, size * .8, size * 1.1);
+            caps.setColorAt(mushroom, tint.set(color).offsetHSL(0, 0, randomBetween(-.08, .05)));
+            mushroom++;
+          }
+        }
+        stems.count = caps.count = mushroom;
+        // Rubble and fallen stones.
+        const rubble = instanced(new THREE.DodecahedronGeometry(.13, 0), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .95, flatShading: true }), spots.length * 3);
+        const rubbleColors = ['#5a4c88', '#4a5a8c', '#6a5a96', '#3e3a66'];
+        let stone = 0;
+        for (const spot of spots) {
+          for (let piece = 0; piece < 3; piece++) {
+            if (Math.random() < .35) continue;
+            const [x, z] = point(spot, randomBetween(-spot.length / 2 + .4, spot.length / 2 - .4), randomBetween(.12, .45));
+            const size = randomBetween(.5, 1.6);
+            place(rubble, stone, x, .04 * size, z, Math.random() * 3, Math.random() * 3, Math.random() * 3, size, size * randomBetween(.5, .9), size);
+            rubble.setColorAt(stone++, tint.set(rubbleColors[Math.floor(Math.random() * rubbleColors.length)]));
+          }
+        }
+        rubble.count = stone;
+        rubble.castShadow = true;
+        // Ivy hanging down from the tops of some walls.
+        const vineSpots = spots.filter(() => Math.random() < .3);
+        const leaves = instanced(new THREE.PlaneGeometry(.2, .15), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .7, side: THREE.DoubleSide }), vineSpots.length * 3 * 26);
+        const leafColors = ['#3f8a4a', '#5aa85a', '#2f7a5a', '#6cbf5a'];
+        let leaf = 0;
+        for (const spot of vineSpots) {
+          for (let strand = 0; strand < 3; strand++) {
+            if (Math.random() < .3) continue;
+            let along = randomBetween(-spot.length / 2 + .5, spot.length / 2 - .5);
+            const drop = randomBetween(1, 3.2), count = Math.floor(drop / .13);
+            for (let piece = 0; piece < count && piece < 26; piece++) {
+              along += randomBetween(-.05, .05);
+              const y = spot.height - piece * .13 - randomBetween(0, .05);
+              const [x, z] = point(spot, along + randomBetween(-.07, .07), .04);
+              const facing = spot.horizontal ? (spot.side > 0 ? 0 : Math.PI) : spot.side * Math.PI / 2;
+              place(leaves, leaf, x, y, z, randomBetween(-.4, .4), facing + randomBetween(-.5, .5), randomBetween(-.8, .8), randomBetween(.7, 1.2));
+              leaves.setColorAt(leaf++, tint.set(leafColors[Math.floor(Math.random() * leafColors.length)]));
+            }
+          }
+        }
+        leaves.count = leaf;
+      }
       function buildScene() {
-        scene.add(new THREE.HemisphereLight('#e2d4ff', '#3d2a66', 1.0));
-        const sun = new THREE.DirectionalLight('#ffd9a0', 1.15);
+        scene.add(new THREE.HemisphereLight('#e2d4ff', '#3d2a66', highGraphics ? .85 : 1.0));
+        const sun = new THREE.DirectionalLight('#ffd9a0', highGraphics ? 1.35 : 1.15);
         sun.position.set(-20, 38, 22);
+        if (highGraphics) {
+          // Soft shadows from the walls and wizards across the whole maze.
+          sun.castShadow = true;
+          sun.shadow.mapSize.set(2048, 2048);
+          Object.assign(sun.shadow.camera, { left: -44, right: 44, top: 44, bottom: -44, near: 5, far: 110 });
+          sun.shadow.camera.updateProjectionMatrix();
+          sun.shadow.bias = -.0006;
+          sun.shadow.normalBias = .03;
+          sun.shadow.radius = 3;
+        }
         scene.add(sun);
+        buildSky();
         const blue = new THREE.DirectionalLight('#8c7cff', .6);
         blue.position.set(26, 17, -25);
         scene.add(blue);
@@ -2379,6 +2734,7 @@
           if (!wallColliders.some(wall => Math.abs(wall.x - x) < .1 && Math.abs(wall.z - z) < .1)) addWall(x, z, w, d, 5.2, borderMaterial);
         }
         wallColliders.forEach(dressWall);
+        if (highGraphics) decorateWalls();
         mazeCorners.forEach(corner => addPillar(corner.x, corner.z));
         home.treasure = makeVault(home.x, home.z, true, HOME_COLOR).gem;
         rivals.forEach(rival => { rival.vault.treasure = makeVault(rival.vault.x, rival.vault.z, false, rival.mapColor).gem; });
@@ -2396,6 +2752,13 @@
           rival.body.position.set(rival.x, 0, rival.z);
           scene.add(rival.body);
         });
+        if (highGraphics) {
+          // Gnomes and vaults cast real shadows (see-through effects like auras and glows don't).
+          const castShadows = object => object.traverse(part => { if (part.isMesh && !(part.material && part.material.transparent)) part.castShadow = true; });
+          [player.body, ...rivals.map(rival => rival.body)].forEach(castShadows);
+          scene.children.filter(child => child.isGroup && child.userData.vault).forEach(castShadows);
+          shadowBlob.material.opacity = .28;
+        }
         const dots = new THREE.Group();
         // Floating sparkles in a mix of bright colours.
         const dotMaterials = ['#ffd36b', '#ff7ad9', '#5ef0ff', '#b38bff', '#8dffb0'].map(color => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .7 }));
@@ -4424,10 +4787,21 @@
         });
         document.querySelector('#interact-action').disabled = gameState !== 'playing';
       }
+      // High graphics: a soft glow (bloom) around bright things like spells, torches, crystals and treasure.
+      let composer = null;
+      if (highGraphics && THREE.EffectComposer && THREE.RenderPass && THREE.UnrealBloomPass && THREE.ShaderPass && THREE.GammaCorrectionShader) {
+        try {
+          composer = new THREE.EffectComposer(renderer);
+          composer.addPass(new THREE.RenderPass(scene, camera));
+          composer.addPass(new THREE.UnrealBloomPass(new THREE.Vector2(512, 512), .38, .3, .95));
+          composer.addPass(new THREE.ShaderPass(THREE.GammaCorrectionShader));
+        } catch (error) { console.warn('Glow effect unavailable', error); composer = null; }
+      }
       function resize() {
         const bounds = canvas.getBoundingClientRect();
         if (!bounds.width || !bounds.height) return;
         renderer.setSize(bounds.width, bounds.height, false);
+        if (composer) composer.setSize(bounds.width, bounds.height);
         camera.aspect = bounds.width / bounds.height;
         camera.updateProjectionMatrix();
       }
@@ -4718,7 +5092,7 @@
         reticle.classList.toggle('on-target', !wallPlacement && getAim().kind === 'rival');
         reticle.classList.toggle('placing', !!wallPlacement);
         reticle.classList.toggle('hidden', player.dead || gameState !== 'playing');
-        renderer.render(scene, camera);
+        if (composer) composer.render(); else renderer.render(scene, camera);
         if (toastTimer > 0) { toastTimer -= dt * 1000; if (toastTimer <= 0) document.querySelector('#toast').classList.remove('show'); }
       }
       const reticle = document.querySelector('#reticle');
@@ -5122,7 +5496,10 @@
       // Camera mode: Action (mouse aims) or Classic (drag).
       const renderCameraModes = () => document.querySelectorAll('[data-camera-mode]').forEach(button => button.classList.toggle('active', button.dataset.cameraMode === (profile.cameraMode || 'action')));
       document.querySelectorAll('[data-camera-mode]').forEach(button => button.addEventListener('click', () => { profile.cameraMode = button.dataset.cameraMode; save(); renderCameraModes(); }));
-      $('#controls-button').addEventListener('click', () => { listeningFor = null; renderControls(); renderCameraModes(); controlsPanel.hidden = false; });
+      // Graphics quality: High (shadows, glow, plants) or Low (faster).
+      const renderGraphicsModes = () => document.querySelectorAll("[data-graphics]").forEach(button => button.classList.toggle("active", button.dataset.graphics === (profile.graphics || "high")));
+      document.querySelectorAll("[data-graphics]").forEach(button => button.addEventListener("click", () => { profile.graphics = button.dataset.graphics; save(); renderGraphicsModes(); }));
+      $('#controls-button').addEventListener('click', () => { listeningFor = null; renderControls(); renderCameraModes(); renderGraphicsModes(); controlsPanel.hidden = false; });
       const closeControls = () => { listeningFor = null; controlsPanel.hidden = true; };
       $('#controls-close').addEventListener('click', closeControls);
       controlsPanel.addEventListener('click', event => { if (event.target === controlsPanel) closeControls(); });
@@ -5753,7 +6130,7 @@
         const mode = profile.mode, matchType = profile.matchType;
         window.startMatch({
           net,
-          mode, matchType, name: displayName(), model: profile.model, color: lookFor(profile.model).color, cosmetics: { skin: equippedSkin(profile.model), aura: profile.equipped.aura, dye: activeDye() ? activeDye().id : null }, title: equippedTitle(), sensitivity: profile.sensitivity, cameraMode: profile.cameraMode, keys: currentKeys(),
+          mode, matchType, name: displayName(), model: profile.model, color: lookFor(profile.model).color, cosmetics: { skin: equippedSkin(profile.model), aura: profile.equipped.aura, dye: activeDye() ? activeDye().id : null }, title: equippedTitle(), sensitivity: profile.sensitivity, cameraMode: profile.cameraMode, graphics: profile.graphics || "high", keys: currentKeys(),
           sigil: modelInfo().sigil, role: modelInfo().role, rating: profile.rp[mode], record: profile.record[mode],
           rankName: rp => rankFor(rp).name, playerRankName: rankFor(profile.rp[mode], profile.record[mode]).name,
           // Ranked only: the player's exact RP change, plus win/loss amounts for the AI stand-ins.
