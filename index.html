@@ -2284,7 +2284,7 @@
             barCanvas.height = 72;
             const texture = new THREE.CanvasTexture(barCanvas);
             const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, sizeAttenuation: false }));
-            sprite.scale.set(.36, .101, 1);
+            sprite.scale.set(.2, .056, 1);
             sprite.renderOrder = 900;
             scene.add(sprite);
             enemyBars.set(wizard, { sprite, canvas: barCanvas, context: barCanvas.getContext('2d'), texture, key: '' });
